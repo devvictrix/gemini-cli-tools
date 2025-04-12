@@ -1,0 +1,15 @@
+{
+  "name": "gemini-poc",
+  "version": "1.0.0",
+  "description": "curl \"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyAbYMNO3kywhikFFK4dmDd8-poEu6h32HM\" \\ -H 'Content-Type: application/json' \\ -X POST \\ -d '{ \"contents\": [{ \"parts\":[{\"text\": \"Explain how AI works\"}] }] }'",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.8.4",
+    "dotenv": "^16.5.0"
+  }
+}
