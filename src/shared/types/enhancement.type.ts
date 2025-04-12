@@ -4,7 +4,8 @@ export enum EnhancementType {
     AddComments = 'AddComments',
     Analyze = 'Analyze',
     Explain = 'Explain',
-    ConsolidateAndAnalyze = 'ConsolidateAndAnalyze', // NEW TYPE
+    ConsolidateAndAnalyze = 'ConsolidateAndAnalyze',
+    AddPathComment = 'AddPathComment',
     // Add more types here later
 }
 
