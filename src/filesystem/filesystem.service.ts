@@ -1,7 +1,7 @@
 // src/inspector/inspector.service.ts
 import { promises as fs } from "fs";
 import * as path from "path";
-import { INSPECTOR_INCLUDE_EXTENSIONS, INSPECTOR_EXCLUDE_PATTERNS, INSPECTOR_EXCLUDE_FILENAMES } from './inspector.config.js';
+import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from './filesystem.config.js';
 import { getAllFiles, filterLines } from './utils/file.utils.js';
 
 /**
@@ -27,13 +27,13 @@ export async function getTargetFiles(rootDir: string, filePrefix: string = ""): 
     }
 
     // Get all file paths recursively, passing exclusion config.
-    const allFiles = await getAllFiles(absRoot, INSPECTOR_EXCLUDE_PATTERNS, INSPECTOR_EXCLUDE_FILENAMES);
+    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES);
     console.log(`[Inspector] Found ${allFiles.length} potential files in directory tree.`);
 
     const targetFiles = allFiles.filter(filePath => {
         const fileName = path.basename(filePath);
         const passesPrefix = !filePrefix || fileName.startsWith(filePrefix);
-        const passesExtension = INSPECTOR_INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase());
+        const passesExtension = INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase());
         return passesPrefix && passesExtension;
     });
 
@@ -68,13 +68,13 @@ export async function getConsolidatedSources(rootDir: string, filePrefix: string
         `// Consolidation timestamp: ${now}\n` +
         `// Tool Name: gemini-poc (inspector module)\n` + // Updated tool name
         `// Root Directory: ${absRoot}\n` +
-        `// Include Extensions: ${[...INSPECTOR_INCLUDE_EXTENSIONS].sort().join(", ")}\n` +
-        `// Exclude Patterns/Files: ${[...INSPECTOR_EXCLUDE_PATTERNS, ...INSPECTOR_EXCLUDE_FILENAMES].sort().join(", ")}\n\n`;
+        `// Include Extensions: ${[...INCLUDE_EXTENSIONS].sort().join(", ")}\n` +
+        `// Exclude Patterns/Files: ${[...EXCLUDE_PATTERNS, ...EXCLUDE_FILENAMES].sort().join(", ")}\n\n`;
 
     let outputContent = header;
 
     // Get all file paths recursively, passing exclusion config.
-    const allFiles = await getAllFiles(absRoot, INSPECTOR_EXCLUDE_PATTERNS, INSPECTOR_EXCLUDE_FILENAMES);
+    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES);
     console.log(`[Inspector] Found ${allFiles.length} potential files.`);
 
     for (const filePath of allFiles) {
@@ -86,7 +86,7 @@ export async function getConsolidatedSources(rootDir: string, filePrefix: string
         }
 
         // Skip files with unsupported extension (already partly handled by getAllFiles logic but double-check)
-        if (!INSPECTOR_INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase())) {
+        if (!INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase())) {
             continue;
         }
 

@@ -4,8 +4,7 @@ import * as path from 'path';
 import pLimit from 'p-limit'; // Import p-limit for concurrency control
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from './gemini/gemini.service.js';
 import { EnhancementType, isValidEnhancementType } from './shared/types/enhancement.type.js';
-import { getConsolidatedSources, getTargetFiles } from './inspector/inspector.service.js';
-// Note: Removed import for CODE_FILE_PATH as it's no longer used as a default
+import { getConsolidatedSources, getTargetFiles } from './filesystem/filesystem.service.js';
 
 // --- Interfaces ---
 
