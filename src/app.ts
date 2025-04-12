@@ -1,258 +1,204 @@
 // src/app.ts
-import axios, { AxiosError, AxiosResponse } from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
-import dotenv from 'dotenv'; // Use ES6 import style
+import { CODE_FILE_PATH } from './config';
+import { enhanceCodeWithGemini, GeminiEnhancementResult } from './gemini/gemini.service';
+import { EnhancementType, isValidEnhancementType } from './shared/types/enhancement.type';
+// --- NEW IMPORT ---
+import { getConsolidatedSources } from './inspector/inspector.service';
+// --- END NEW IMPORT ---
 
-dotenv.config(); // Load .env variables
+// readCodeFile, updateCodeFile, parseArguments functions remain the same...
 
-// --- Configuration ---
-const GEMINI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`;
-const API_KEY = process.env.GEMINI_API_KEY;
-// Point to the TypeScript file now
-const CODE_FILE_PATH = path.join(__dirname, '../consolidated_sources.ts'); // Adjusted path relative to src/
-
-// --- Enhancement Types Enum ---
-export enum EnhancementType {
-  AddComments = 'AddComments', // Add JSDoc/inline comments
-  Analyze = 'Analyze', // Provide analysis/feedback text
-  Explain = 'Explain', // Explain the code in plain text
-  // Add more types here later (e.g., Refactor, CheckSecurity)
-}
-
-// --- Type checking for enum ---
-function isValidEnhancementType(value: string): value is EnhancementType {
-    return Object.values(EnhancementType).includes(value as EnhancementType);
-}
-
-
-if (!API_KEY) {
-  console.error("Error: GEMINI_API_KEY environment variable not found.");
-  console.log("Please create a .env file in the project root and add your API key:");
-  console.log("GEMINI_API_KEY=YOUR_API_KEY_HERE");
-  process.exit(1);
-}
-
-// --- Utility Function to Extract Code ---
-// Keep this function focused on extracting fenced code blocks
-function extractCodeBlock(text: string): string | null {
-  if (!text) return null;
-  // Look for Markdown code blocks (```typescript ... ``` or ```ts ... ``` or just ``` ... ```)
-  // Capture content within the fences
-  const markdownMatch = text.match(/```(?:typescript|ts)?\s*([\s\S]*?)\s*```/);
-  if (markdownMatch && markdownMatch[1]) {
-    return markdownMatch[1].trim(); // Return the captured group
-  }
-  // Maybe a fallback? For now, let's rely on the fenced block for safety.
-  // If Gemini *only* returns code without fences (as requested for modifications),
-  // this might fail. Consider adding a check if the *entire* response looks like code.
-  console.warn("Could not find a ```typescript ... ``` or similar code block in the response.");
-  return null; // Could not extract code reliably
-}
-
-// --- Prompt Generation ---
-function generatePrompt(enhancement: EnhancementType, code: string): string {
-    console.log(`Generating prompt for enhancement type: ${enhancement}`);
-    switch (enhancement) {
-        case EnhancementType.AddComments:
-            return `
-Review the following TypeScript code and add detailed JSDoc comments for functions, classes, and complex logic, as well as inline comments where necessary for clarity.
-**IMPORTANT: Respond with ONLY the complete, updated TypeScript code block itself, including the added comments. Do not include any explanatory text before or after the code block.**
-
-\`\`\`typescript
-${code}
-\`\`\`
-`;
-        case EnhancementType.Analyze:
-            return `
-Analyze the following TypeScript code for potential issues, areas for improvement (e.g., efficiency, readability, maintainability, potential bugs), and overall code quality. Provide your analysis as clear, concise text. Do not suggest code modifications directly in this analysis, just describe the findings.
-
-\`\`\`typescript
-${code}
-\`\`\`
-`;
-        case EnhancementType.Explain:
-            return `
-Explain the following TypeScript code in simple terms. Describe its purpose, how it works, and what each major part does.
-
-\`\`\`typescript
-${code}
-\`\`\`
-`;
-        // Add cases for other enhancement types here
-        default:
-             // Should not happen if using enum correctly, but good practice
-            console.warn(`Unknown enhancement type: ${enhancement}. Using generic prompt.`);
-            return `Review and provide feedback on the following code:\n\n\`\`\`typescript\n${code}\n\`\`\``;
-    }
-}
-
-
-// --- API Call Function ---
-// Added explicit types for Promise resolution
-async function callGeminiApi(promptText: string): Promise<string | null> {
-  console.log(`--- Sending Prompt to Gemini (${promptText.length} chars) ---`);
-  // Avoid printing huge prompts entirely
-  const preview = promptText.length > 500 ? promptText.substring(0, 500) + '...' : promptText;
-  console.log(preview);
-  console.log("---------------------------------");
-
-  const requestData = {
-    contents: [{ parts: [{ text: promptText }] }],
-    // generationConfig: { temperature: 0.5 } // Adjust if needed
-  };
-
-  const config = {
-    headers: { 'Content-Type': 'application/json' },
-    params: { key: API_KEY },
-    // Add timeout?
-    // timeout: 30000 // 30 seconds
-  };
-
+/**
+ * Reads the content of a code file.
+ * @param filePath The path to the code file.
+ * @returns The code content as a string.  Throws an error if the file cannot be read.
+ */
+function readCodeFile(filePath: string): string {
+  // ... (implementation remains the same) ...
+  console.log(`Attempting to read code from: ${filePath}`);
   try {
-    const response: AxiosResponse = await axios.post(GEMINI_API_ENDPOINT, requestData, config);
-
-    // Refined response checking
-    const candidate = response.data?.candidates?.[0];
-    const responseText = candidate?.content?.parts?.[0]?.text;
-
-    if (responseText) {
-      console.log("\n--- Raw Gemini Response ---");
-      console.log(responseText.trim());
-      console.log("---------------------------\n");
-      return responseText.trim(); // Return the response text
+    const code = fs.readFileSync(filePath, 'utf8');
+    console.log(`Successfully read ${code.length} characters.`);
+    return code;
+  } catch (readError) {
+    console.error(`❌ Error reading file ${filePath}:`);
+    if (readError instanceof Error) {
+      console.error(readError.message);
     } else {
-      console.warn("Warning: Received an unexpected or empty response structure from Gemini.");
-      console.log("Full Response Data:", JSON.stringify(response.data, null, 2));
-      return null;
+      console.error("An unknown error occurred during file read.");
     }
-  } catch (error) {
-    console.error("\n--- Error calling Gemini API ---");
-    const axiosError = error as AxiosError; // Type assertion
-    if (axiosError.response) {
-      console.error("Status:", axiosError.response.status);
-      console.error("Data:", JSON.stringify(axiosError.response.data, null, 2));
-    } else if (axiosError.request) {
-      console.error("Request Error: No response received.", axiosError.request);
-    } else {
-      console.error('Error Message:', axiosError.message);
-    }
-    console.error("-----------------------------\n");
-    return null; // Indicate failure
+    throw readError;
   }
 }
 
-// --- File Update Function (with safety check) ---
+/**
+ * Updates the content of a code file.  Provides a warning before overwriting.
+ * @param filePath The path to the code file.
+ * @param newCode The new code content to write to the file.
+ * @returns True if the file was updated successfully, false otherwise.
+ */
 function updateCodeFile(filePath: string, newCode: string): boolean {
-     // *** DANGER ZONE: Overwriting the file ***
-     console.warn(`\nWARNING: Attempting to overwrite ${filePath}...`);
-     try {
-         fs.writeFileSync(filePath, newCode, 'utf8');
-         console.log(`✅ Successfully updated ${filePath}.`);
-         // Add git staging here if desired (and imported 'execSync')
-         return true;
-     } catch (writeError) {
-         // Improve error handling for file writing
-         if (writeError instanceof Error) {
-             console.error(`❌ Error writing file ${filePath}:`, writeError.message);
-         } else {
-             console.error(`❌ An unknown error occurred while writing file ${filePath}.`);
-         }
-         return false;
-     }
-     // *** END DANGER ZONE ***
+  // ... (implementation remains the same) ...
+  console.warn(`\n⚠️ WARNING: Attempting to automatically overwrite ${path.basename(filePath)}...`);
+  try {
+    fs.writeFileSync(filePath, newCode, 'utf8');
+    console.log(`✅ Successfully updated ${filePath}.`);
+    return true;
+  } catch (writeError) {
+    console.error(`❌ Error writing file ${filePath}:`);
+    if (writeError instanceof Error) {
+      console.error(writeError.message);
+    } else {
+      console.error("An unknown error occurred during file write.");
+    }
+    return false;
+  }
 }
 
+/**
+ * Parses command line arguments to determine the desired enhancement type.
+ * Exits the process if no argument or an invalid argument is provided.
+ * @returns The validated EnhancementType from the command-line arguments.
+ */
+function parseArguments(): EnhancementType {
+  // ... (implementation remains the same - now recognizes ConsolidateAndAnalyze) ...
+  const args = process.argv.slice(2);
+  const requestedEnhancement = args[0];
 
-// --- Main Execution Logic ---
-async function main() {
-    // --- Argument Parsing ---
-    const args = process.argv.slice(2); // Get args excluding 'node' and script path
-    const requestedEnhancement = args[0]; // Expecting type as the first argument
-
-    if (!requestedEnhancement) {
-        console.error("Error: Please provide an enhancement type as a command-line argument.");
-        console.log("Available types:", Object.values(EnhancementType).join(', '));
-        process.exit(1);
-    }
-
-    if (!isValidEnhancementType(requestedEnhancement)) {
-         console.error(`Error: Invalid enhancement type "${requestedEnhancement}".`);
-         console.log("Available types:", Object.values(EnhancementType).join(', '));
-         process.exit(1);
-    }
-
-    const enhancementType: EnhancementType = requestedEnhancement; // Type assertion is safe now
-    console.log(`Selected enhancement: ${enhancementType}`);
-
-    // --- Read Original Code ---
-    let originalCode: string;
-    try {
-        originalCode = fs.readFileSync(CODE_FILE_PATH, 'utf8');
-        console.log(`Successfully read original code from ${CODE_FILE_PATH}`);
-    } catch (readError) {
-        if (readError instanceof Error) {
-            console.error(`Error reading file ${CODE_FILE_PATH}:`, readError.message);
-        } else {
-            console.error(`An unknown error occurred reading ${CODE_FILE_PATH}.`);
-        }
-        process.exit(1);
-    }
-
-    // --- Generate Prompt & Call API ---
-    const prompt = generatePrompt(enhancementType, originalCode);
-    const geminiResponse = await callGeminiApi(prompt);
-
-    if (!geminiResponse) {
-        console.log("\nDid not receive a valid response from Gemini. No changes made.");
-        process.exit(1); // Exit if API call failed
-    }
-
-    // --- Process Response based on Enhancement Type ---
-    switch (enhancementType) {
-        case EnhancementType.AddComments:
-            // Actions requiring code modification and merge
-            console.log(`Processing response for ${enhancementType}... Attempting to extract code.`);
-            const extractedCode = extractCodeBlock(geminiResponse);
-
-            if (extractedCode) {
-                console.log("Successfully extracted potential code block.");
-                if (originalCode.trim() !== extractedCode.trim()) {
-                    console.log("\n✨ Proposed changes detected from Gemini!");
-                    console.log("--- Proposed Code Snippet (first 20 lines) ---");
-                    console.log(extractedCode.split('\n').slice(0, 20).join('\n') + '\n...');
-                    console.log("---------------------------------------------\n");
-                    // Attempt to update the file
-                    updateCodeFile(CODE_FILE_PATH, extractedCode);
-                } else {
-                    console.log("\n✅ Gemini response code matches original code. No file update needed.");
-                }
-            } else {
-                console.warn("\n⚠️ Could not extract a valid code block from the Gemini response. No changes made to file.");
-                console.log("   This might happen if Gemini included explanatory text despite the prompt.");
-            }
-            break;
-
-        case EnhancementType.Analyze:
-        case EnhancementType.Explain:
-            // Actions requiring textual output only
-            console.log(`\n--- Gemini ${enhancementType} Result ---`);
-            console.log(geminiResponse); // Print the full response as is
-            console.log(`--- End ${enhancementType} Result ---\n`);
-            // No file modification for these types
-            break;
-
-        // Add cases for other enhancement types here
-
-        default:
-            console.log("Unhandled enhancement type in response processing.");
-            break;
-    }
-}
-
-// Execute the main function
-main().catch(error => {
-    // Catch any unhandled promise rejections from main
-    console.error("An unexpected error occurred in main execution:", error);
+  if (!requestedEnhancement) {
+    console.error("\n❌ Error: Please provide an enhancement type as a command-line argument.");
+    console.log("   Example: npm start AddComments");
+    console.log("Available types:", Object.values(EnhancementType).join(', '));
     process.exit(1);
+  }
+
+  if (!isValidEnhancementType(requestedEnhancement)) {
+    console.error(`\n❌ Error: Invalid enhancement type "${requestedEnhancement}".`);
+    console.log("Available types:", Object.values(EnhancementType).join(', '));
+    process.exit(1);
+  }
+  return requestedEnhancement as EnhancementType;
+}
+
+/**
+ * The main function that orchestrates the code enhancement process.
+ */
+async function main() {
+  const actionType = parseArguments(); // Changed variable name for clarity
+  console.log(`Selected action: ${actionType}`);
+
+  let codeToProcess: string;
+  let isModificationAllowed = false; // Flag to control if file update happens
+
+  // --- Determine the code source and action ---
+  if (actionType === EnhancementType.ConsolidateAndAnalyze) {
+    console.log("\nAction requires consolidation...");
+    try {
+      // Consolidate from the project's root directory
+      const projectRoot = process.cwd(); // Or get from config if needed
+      codeToProcess = await getConsolidatedSources(projectRoot);
+      // We don't modify files when just consolidating and analyzing
+      isModificationAllowed = false;
+      console.log("Consolidation complete. Proceeding to analysis...");
+    } catch (consolidationError) {
+      console.error("❌ Failed during code consolidation step:", consolidationError);
+      process.exit(1);
+    }
+  } else {
+    // For other actions, read the specifically configured target file
+    console.log("\nAction targets specific code file...");
+    try {
+      originalCode = readCodeFile(CODE_FILE_PATH);
+      codeToProcess = originalCode; // The code to send to Gemini is from the file
+      // Only allow modification for specific types like AddComments
+      isModificationAllowed = (actionType === EnhancementType.AddComments);
+      if (!codeToProcess && codeToProcess !== '') {
+        throw new Error("Read code file but result was empty or invalid.");
+      }
+    } catch (error) {
+      console.error(`Failed to read initial code file (${CODE_FILE_PATH}). Exiting.`);
+      process.exit(1);
+    }
+  }
+
+
+  // --- Determine the type of enhancement to request from Gemini ---
+  let geminiEnhancementRequestType: EnhancementType;
+  if (actionType === EnhancementType.ConsolidateAndAnalyze) {
+    geminiEnhancementRequestType = EnhancementType.Analyze; // Analyze the consolidated code
+  } else {
+    geminiEnhancementRequestType = actionType; // Use the action type directly
+  }
+
+
+  // --- Call the Gemini service ---
+  console.log(`\nInvoking Gemini service for enhancement: ${geminiEnhancementRequestType}...`);
+  const result: GeminiEnhancementResult = await enhanceCodeWithGemini(geminiEnhancementRequestType, codeToProcess);
+
+  // --- Process the result from the service ---
+  console.log("\nProcessing Gemini service result...");
+  switch (result.type) {
+    case 'code':
+      // Handle results where code modification was expected (e.g., AddComments)
+      if (result.content) {
+        if (isModificationAllowed) {
+          // Compare with the ORIGINAL code read from the file, not the consolidated one
+          const originalCodeForComparison = readCodeFile(CODE_FILE_PATH); // Re-read for safety? Or use stored 'originalCode'
+
+          if (originalCodeForComparison.trim() !== result.content.trim()) {
+            console.log("\n✨ Proposed code changes detected from Gemini!");
+            console.log(`--- Proposed Code Snippet for ${path.basename(CODE_FILE_PATH)} (first 20 lines) ---`);
+            console.log(result.content.split('\n').slice(0, 20).join('\n'));
+            if (result.content.split('\n').length > 20) console.log('...');
+            console.log("-----------------------------------------------------");
+            updateCodeFile(CODE_FILE_PATH, result.content); // Attempt to overwrite the specific target file
+          } else {
+            console.log("\n✅ Gemini response code seems identical to original code. No file update needed.");
+          }
+        } else {
+          console.log("\nℹ️ Gemini returned code, but modification is not enabled for this action type.");
+          console.log("--- Received Code Snippet (first 20 lines) ---");
+          console.log(result.content.split('\n').slice(0, 20).join('\n'));
+          if (result.content.split('\n').length > 20) console.log('...');
+          console.log("----------------------------------------------");
+        }
+      } else {
+        console.error("❌ Internal Error: Gemini service result type is 'code' but content is missing.");
+      }
+      break;
+
+    case 'text':
+      // Handle results that are purely textual (e.g., Analyze, Explain)
+      console.log(`\n--- Gemini ${geminiEnhancementRequestType} Result ---`); // Use the type sent to Gemini
+      console.log(result.content ?? 'Gemini returned empty text content.');
+      console.log(`--- End ${geminiEnhancementRequestType} Result ---\n`);
+      break;
+
+    case 'error':
+      // Handle errors reported by the Gemini service itself
+      console.error(`\n❌ Enhancement process failed: ${result.content ?? 'No specific error message provided.'}`);
+      break;
+
+    default:
+      // Should be unreachable
+      const exhaustiveCheck: unknown = result;
+      console.error(`Internal Error: Unhandled result type encountered in switch. Result object:`, exhaustiveCheck);
+      throw new Error(`Unhandled GeminiEnhancementResult type: ${(exhaustiveCheck as any)?.type ?? 'unknown type'}`);
+  }
+
+  console.log("\nScript execution finished.");
+}
+
+// Execute main function with top-level error catching
+main().catch(error => {
+  console.error("\n🚨 An unexpected critical error occurred during execution:");
+  if (error instanceof Error) {
+    console.error(error.message);
+    // console.error(error.stack); // Optional: log stack trace for debugging
+  } else {
+    console.error(error);
+  }
+  process.exit(1); // Exit with failure code on unhandled errors
 });
