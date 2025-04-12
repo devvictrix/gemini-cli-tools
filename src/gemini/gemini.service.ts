@@ -137,6 +137,11 @@ export async function enhanceCodeWithGemini(
         return { type: 'error', content: 'Failed to get response from Gemini API.' };
     }
 
+    console.log(`\n--- FULL Raw Response for ${enhancementType} ---`);
+    console.log("Length:", rawResponse.length);
+    console.log("Content:\n", rawResponse);
+    console.log("--- END FULL Raw Response ---\n");
+
     // Process response based on the expected output for the enhancement type
     switch (enhancementType) {
         case EnhancementType.AddComments:
