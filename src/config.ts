@@ -5,6 +5,11 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // --- Required API Key ---
+/**
+ * The Gemini API key.
+ * This is a required environment variable.
+ * @throws {Error} If the GEMINI_API_KEY environment variable is not set.
+ */
 export const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
@@ -16,12 +21,20 @@ if (!GEMINI_API_KEY) {
 
 // --- Selectable Model Name ---
 const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash-latest';
+/**
+ * The Gemini model name to use.
+ * Defaults to 'gemini-1.5-flash-latest' if the GEMINI_MODEL_NAME environment variable is not set.
+ */
 export const GEMINI_MODEL_NAME = process.env.GEMINI_MODEL_NAME || DEFAULT_GEMINI_MODEL;
 
 // --- Construct Endpoint Dynamically ---
 // Base URL structure for the generateContent method
 const GEMINI_API_BASE = `https://generativelanguage.googleapis.com/v1beta/models`;
-export const GEMINI_API_ENDPOINT = `${GEMINI_API_BASE}/${GEMINI_MODEL_NAME}:generateContent`;
+/**
+ * The full Gemini API endpoint URL.
+ * This is constructed dynamically using the GEMINI_API_BASE and GEMINI_MODEL_NAME.
+ */
+export const GEMINI_API_ENDPOINT = `${GEMINI_API_BASE}/${GEMINI_MODEL_NAME}:generateContent`; // Construct the full endpoint URL
 
 
 // --- Log Loaded Configuration ---
