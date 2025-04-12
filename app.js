@@ -7,7 +7,7 @@ require("dotenv").config();
 // --- Configuration ---
 const GEMINI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`;
 const API_KEY = process.env.GEMINI_API_KEY;
-const CODE_FILE_PATH = path.join(__dirname, "sample_code.js"); // Path to the code file
+const CODE_FILE_PATH = path.join(__dirname, "consolidated_sources.ts"); // Path to the code file
 
 if (!API_KEY) {
   console.error("Error: GEMINI_API_KEY environment variable not found.");
