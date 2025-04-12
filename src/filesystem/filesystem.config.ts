@@ -1,4 +1,4 @@
-// src/inspector/inspector.config.ts
+// src/filesystem/filesystem.config.ts
 
 /**
  * Set of file extensions to include during inspection.

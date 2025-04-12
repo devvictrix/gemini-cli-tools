@@ -1,4 +1,5 @@
-// src/inspector/inspector.service.ts
+// src/filesystem/filesystem.service.ts
+
 import { promises as fs } from "fs";
 import * as path from "path";
 import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from './filesystem.config.js';

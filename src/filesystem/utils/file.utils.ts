@@ -1,4 +1,4 @@
-// src/inspector/utils/file.utils.ts
+// src/filesystem/utils/file.utils.ts
 
 import { promises as fs } from "fs";
 import * as path from "path";
