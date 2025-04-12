@@ -27,4 +27,5 @@ export const EXCLUDE_PATTERNS: Set<string> = new Set([
 export const EXCLUDE_FILENAMES: Set<string> = new Set([
 	"package-lock.json",
 	"consolidated_sources.ts",
+	"code.extractor.ts",
 ]);
