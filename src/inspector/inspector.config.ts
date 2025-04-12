@@ -1,6 +1,8 @@
 // src/inspector/inspector.config.ts
 
-// Includes common source files
+/**
+ * Set of file extensions to include during inspection.
+ */
 export const INSPECTOR_INCLUDE_EXTENSIONS: Set<string> = new Set([
 	".ts",
 	".js",
@@ -8,7 +10,9 @@ export const INSPECTOR_INCLUDE_EXTENSIONS: Set<string> = new Set([
 	".env",
 ]);
 
-// Excludes common build artifacts, dependencies, and Git data
+/**
+ * Set of directory or file name patterns to exclude during inspection.
+ */
 export const INSPECTOR_EXCLUDE_PATTERNS: Set<string> = new Set([
 	"node_modules",
 	"dist",
@@ -17,7 +21,9 @@ export const INSPECTOR_EXCLUDE_PATTERNS: Set<string> = new Set([
 	"coverage",
 ]);
 
-// Excludes specific common lock files or potentially large config files
+/**
+ * Set of specific filenames to exclude during inspection.
+ */
 export const INSPECTOR_EXCLUDE_FILENAMES: Set<string> = new Set([
 	"package-lock.json",
 	"consolidated_sources.ts",

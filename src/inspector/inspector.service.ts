@@ -9,7 +9,7 @@ import { getAllFiles, filterLines } from './utils/file.utils.js';
  * @param rootDir The root directory to scan.
  * @param filePrefix Optional file prefix filter.
  * @returns A promise resolving to an array of absolute file paths.
- * @throws Error if the root directory cannot be accessed or is not a directory.
+ * @throws {Error} If the root directory cannot be accessed or is not a directory.
  */
 export async function getTargetFiles(rootDir: string, filePrefix: string = ""): Promise<string[]> {
     console.log(`[Inspector] Searching for target files in root: ${rootDir}${filePrefix ? `, prefix: '${filePrefix}'` : ''}`);
@@ -46,7 +46,7 @@ export async function getTargetFiles(rootDir: string, filePrefix: string = ""): 
  * @param rootDir The root directory to scan.
  * @param filePrefix Optional file prefix filter.
  * @returns A promise resolving to the consolidated source code string, including a header.
- * @throws Error if the root directory cannot be accessed.
+ * @throws {Error} If the root directory cannot be accessed.
  */
 export async function getConsolidatedSources(rootDir: string, filePrefix: string = ""): Promise<string> {
     console.log(`[Inspector] Starting consolidation for root: ${rootDir}${filePrefix ? `, prefix: '${filePrefix}'` : ''}`);
@@ -92,7 +92,7 @@ export async function getConsolidatedSources(rootDir: string, filePrefix: string
 
         let canonicalPath: string;
         try {
-            canonicalPath = await fs.realpath(filePath);
+            canonicalPath = await fs.realpath(filePath); // Resolve symlinks and get the absolute path
         } catch (realpathError) {
             console.warn(`[Inspector] Warning: Could not get real path for ${filePath}. Skipping. Error: ${realpathError instanceof Error ? realpathError.message : realpathError}`);
             continue;
@@ -100,7 +100,7 @@ export async function getConsolidatedSources(rootDir: string, filePrefix: string
 
         if (seenFiles.has(canonicalPath)) {
             // console.log(`  [Inspector] Skipping already seen file: ${canonicalPath}`);
-            continue;
+            continue; // Skip already processed files
         }
         seenFiles.add(canonicalPath);
 

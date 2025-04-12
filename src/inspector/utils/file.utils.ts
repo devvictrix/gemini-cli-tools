@@ -60,12 +60,13 @@ export function filterLines(lines: string[], friendlyPath: string): string[] {
     while (startIndex < lines.length) {
         const firstLine = lines[startIndex].trim();
         if (firstLine === "") {
+            // Skip blank lines
             startIndex++;
         } else if (firstLine.startsWith("//") && firstLine.includes(friendlyPath)) {
-            // Allow one marker line, skip subsequent ones implicitly below
+            // Skip marker comment lines (allow one, skip subsequent ones implicitly)
             startIndex++;
         } else {
-            break;
+            break; // Stop when the first relevant line is found
         }
     }
 
@@ -73,12 +74,12 @@ export function filterLines(lines: string[], friendlyPath: string): string[] {
 
     // Remove duplicate consecutive comment lines.
     const filteredLines: string[] = [];
-    let prevLineTrimmed = "UNIQUE_INITIAL_VALUE"; // Ensure first line is always added
+    let prevLineTrimmed = "UNIQUE_INITIAL_VALUE"; // Initialize with a unique value to ensure the first line is always added
 
     for (const line of relevantLines) {
         const currentLineTrimmed = line.trim();
-        // Skip if current line is identical to the previous one (ignoring whitespace)
-        if (currentLineTrimmed === prevLineTrimmed && currentLineTrimmed !== "") { // Don't skip consecutive blank lines
+        // Skip if current line is identical to the previous one (ignoring whitespace), but don't skip consecutive blank lines
+        if (currentLineTrimmed === prevLineTrimmed && currentLineTrimmed !== "") { 
             continue;
         }
         filteredLines.push(line);
