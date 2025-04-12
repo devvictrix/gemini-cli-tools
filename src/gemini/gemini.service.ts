@@ -28,14 +28,6 @@ Ensure existing comments are preserved or improved if necessary.
 ${code}
 \`\`\`
 `;
-        case EnhancementType.Analyze:
-            return `
-Analyze the following TypeScript code for potential issues, areas for improvement (e.g., efficiency, readability, maintainability, potential bugs), and overall code quality. Provide your analysis as clear, concise text. Do not suggest code modifications directly in this analysis, just describe the findings.
-
-\`\`\`typescript
-${code}
-\`\`\`
-`;
         case EnhancementType.Explain:
             return `
 Explain the following TypeScript code in simple terms. Describe its purpose, how it works, and what each major part does.
