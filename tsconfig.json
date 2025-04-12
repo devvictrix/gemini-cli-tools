@@ -1,17 +1,17 @@
 // tsconfig.json
+
 {
   "compilerOptions": {
-    "target": "ES2020", // Target modern Node.js versions
-    "module": "CommonJS", // Standard module system for Node.js
-    "outDir": "./dist", // Output directory for compiled JavaScript
-    "rootDir": "./src", // Where your TypeScript source files are
-    "strict": true, // Enable all strict type-checking options
-    "esModuleInterop": true, // Allows importing CommonJS modules using ES6 import syntax
-    "skipLibCheck": true, // Skip type checking of declaration files (speeds up compilation)
-    "forceConsistentCasingInFileNames": true, // Disallow inconsistently-cased references
-    "resolveJsonModule": true, // Allow importing JSON files
-    "sourceMap": true // Generate source maps for debugging
+    "module": "NodeNext", // Specify ESM output compatible with Node.js
+    "moduleResolution": "NodeNext", // Use Node's modern module resolution
+    "target": "ES2020", // Or newer (ES2020 supports top-level await used in main)
+    "outDir": "./dist", // Your existing output directory
+    "rootDir": "./src", // Your existing source directory
+    "esModuleInterop": true, // Usually helpful for CJS/ESM interop
+    "forceConsistentCasingInFileNames": true,
+    "strict": true, // Recommended
+    "skipLibCheck": true // Often needed for smoother builds
   },
-  "include": ["src/**/*"], // Which files to include in compilation
-  "exclude": ["node_modules", "**/*.spec.ts"] // Which files/dirs to exclude
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
 }

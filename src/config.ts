@@ -1,6 +1,6 @@
 // src/config.ts
+
 import dotenv from 'dotenv';
-import path from 'path';
 
 dotenv.config();
 
@@ -27,5 +27,4 @@ export const GEMINI_API_ENDPOINT = `${GEMINI_API_BASE}/${GEMINI_MODEL_NAME}:gene
 // --- Log Loaded Configuration ---
 console.log("Configuration loaded.");
 console.log(` > Using Gemini Model: ${GEMINI_MODEL_NAME}`);
-// Optionally log the endpoint for debugging, but it can be long
-// console.log(` > Gemini Endpoint: ${GEMINI_API_ENDPOINT}`);
+console.log(` > Gemini Endpoint: ${GEMINI_API_ENDPOINT}`);

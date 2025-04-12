@@ -1,8 +1,8 @@
 // src/inspector/inspector.service.ts
 import { promises as fs } from "fs";
 import * as path from "path";
-import { INSPECTOR_INCLUDE_EXTENSIONS, INSPECTOR_EXCLUDE_PATTERNS, INSPECTOR_EXCLUDE_FILENAMES } from './inspector.config';
-import { getAllFiles, filterLines } from './utils/file.utils';
+import { INSPECTOR_INCLUDE_EXTENSIONS, INSPECTOR_EXCLUDE_PATTERNS, INSPECTOR_EXCLUDE_FILENAMES } from './inspector.config.js';
+import { getAllFiles, filterLines } from './utils/file.utils.js';
 
 /**
  * Finds all relevant source files within a directory based on config.
