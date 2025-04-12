@@ -59,7 +59,7 @@ ${code}
  * Calls the Gemini API with the generated prompt.
  * @param promptText The complete prompt to send to the Gemini API.
  * @returns A promise resolving to the raw text response from Gemini, or null if an error occurs.
- * @throws {AxiosError} If the API call fails.  The error object will contain details about the failure.
+ * @throws {AxiosError} If the API call fails. The error object will contain details about the failure.
  */
 async function callGeminiApi(promptText: string): Promise<string | null> {
     console.log(`--- Sending Prompt to Gemini (${promptText.length} chars) ---`);
