@@ -6,8 +6,7 @@ dotenv.config();
 
 export const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 export const GEMINI_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`;
-// Ensure this path is correct relative to where you RUN node (usually project root)
-export const CODE_FILE_PATH = path.resolve(process.cwd(), 'consolidated_sources.ts');
+// CODE_FILE_PATH is removed
 
 if (!GEMINI_API_KEY) {
     console.error("CRITICAL ERROR: GEMINI_API_KEY environment variable not found.");
@@ -16,4 +15,5 @@ if (!GEMINI_API_KEY) {
     process.exit(1);
 }
 
-console.log(`Target code file path resolved to: ${CODE_FILE_PATH}`);
+// Optional: Log confirmation that config is loaded
+console.log("Configuration loaded.");

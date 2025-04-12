@@ -5,6 +5,43 @@ import { INSPECTOR_INCLUDE_EXTENSIONS, INSPECTOR_EXCLUDE_PATTERNS, INSPECTOR_EXC
 import { getAllFiles, filterLines } from './utils/file.utils';
 
 /**
+ * Finds all relevant source files within a directory based on config.
+ * @param rootDir The root directory to scan.
+ * @param filePrefix Optional file prefix filter.
+ * @returns A promise resolving to an array of absolute file paths.
+ * @throws Error if the root directory cannot be accessed or is not a directory.
+ */
+export async function getTargetFiles(rootDir: string, filePrefix: string = ""): Promise<string[]> {
+    console.log(`[Inspector] Searching for target files in root: ${rootDir}${filePrefix ? `, prefix: '${filePrefix}'` : ''}`);
+    let absRoot: string;
+    try {
+        absRoot = path.resolve(rootDir);
+        const stats = await fs.stat(absRoot);
+        if (!stats.isDirectory()) {
+            throw new Error(`Target path is not a directory: ${rootDir}`);
+        }
+        await fs.access(absRoot);
+    } catch (error) {
+        console.error(`[Inspector] Error accessing target directory: ${rootDir}`);
+        throw new Error(`Inspector failed: Cannot access target directory '${rootDir}'. ${error instanceof Error ? error.message : ''}`);
+    }
+
+    // Get all file paths recursively, passing exclusion config.
+    const allFiles = await getAllFiles(absRoot, INSPECTOR_EXCLUDE_PATTERNS, INSPECTOR_EXCLUDE_FILENAMES);
+    console.log(`[Inspector] Found ${allFiles.length} potential files in directory tree.`);
+
+    const targetFiles = allFiles.filter(filePath => {
+        const fileName = path.basename(filePath);
+        const passesPrefix = !filePrefix || fileName.startsWith(filePrefix);
+        const passesExtension = INSPECTOR_INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase());
+        return passesPrefix && passesExtension;
+    });
+
+    console.log(`[Inspector] Found ${targetFiles.length} target files matching criteria.`);
+    return targetFiles;
+}
+
+/**
  * Consolidates source files from a directory into a single string.
  * @param rootDir The root directory to scan.
  * @param filePrefix Optional file prefix filter.

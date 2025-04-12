@@ -36,199 +36,220 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // src/app.ts
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
-const config_1 = require("./config");
+// Removed CODE_FILE_PATH import
 const gemini_service_1 = require("./gemini/gemini.service");
 const enhancement_type_1 = require("./shared/types/enhancement.type");
-// --- NEW IMPORT ---
+// Updated inspector imports
 const inspector_service_1 = require("./inspector/inspector.service");
-// --- END NEW IMPORT ---
-// readCodeFile, updateCodeFile, parseArguments functions remain the same...
 /**
- * Reads the content of a code file.
- * @param filePath The path to the code file.
- * @returns The code content as a string.  Throws an error if the file cannot be read.
+ * Parses command line arguments.
+ * Expects: <ActionType> <TargetPath> [Prefix]
+ * TargetPath is now mandatory.
+ * @returns A ParsedArgs object. Exits if validation fails.
  */
-function readCodeFile(filePath) {
-    // ... (implementation remains the same) ...
-    console.log(`Attempting to read code from: ${filePath}`);
+function parseArguments() {
+    const args = process.argv.slice(2);
+    const actionString = args[0];
+    const targetPath = args[1]; // Required
+    const prefix = args[2]; // Optional
+    // Validate Action Type
+    if (!actionString) {
+        console.error("\n❌ Error: Action type is required as the first argument.");
+        // ... (updated usage examples) ...
+        process.exit(1);
+    }
+    if (!(0, enhancement_type_1.isValidEnhancementType)(actionString)) {
+        console.error(`\n❌ Error: Invalid action type "${actionString}".`);
+        console.log("Available Action Types:", Object.values(enhancement_type_1.EnhancementType).join(', '));
+        process.exit(1);
+    }
+    const action = actionString;
+    // Validate Target Path
+    if (!targetPath) {
+        console.error("\n❌ Error: Target path (file or directory) is required as the second argument.");
+        // ... (updated usage examples) ...
+        process.exit(1);
+    }
     try {
+        fs.accessSync(targetPath); // Check if path exists at all
+    }
+    catch (e) {
+        console.error(`\n❌ Error: Cannot access target path: ${targetPath}`);
+        process.exit(1);
+    }
+    return { action, targetPath, prefix };
+}
+/**
+ * Reads the content of a single code file.
+ * @param filePath The path to the code file.
+ * @returns The code content as a string. Throws an error if the file cannot be read or is not a file.
+ */
+function readSingleCodeFile(filePath) {
+    console.log(`[App] Reading file: ${filePath}`);
+    try {
+        const stats = fs.statSync(filePath);
+        if (!stats.isFile()) {
+            throw new Error(`Target path is not a file: ${filePath}`);
+        }
         const code = fs.readFileSync(filePath, 'utf8');
-        console.log(`Successfully read ${code.length} characters.`);
+        console.log(`[App] Successfully read ${code.length} characters.`);
         return code;
     }
     catch (readError) {
         console.error(`❌ Error reading file ${filePath}:`);
-        if (readError instanceof Error) {
-            console.error(readError.message);
-        }
-        else {
-            console.error("An unknown error occurred during file read.");
-        }
+        // ... (error logging) ...
         throw readError;
     }
 }
 /**
- * Updates the content of a code file.  Provides a warning before overwriting.
+ * Updates the content of a code file. Provides a warning before overwriting.
  * @param filePath The path to the code file.
  * @param newCode The new code content to write to the file.
  * @returns True if the file was updated successfully, false otherwise.
  */
 function updateCodeFile(filePath, newCode) {
-    // ... (implementation remains the same) ...
-    console.warn(`\n⚠️ WARNING: Attempting to automatically overwrite ${path.basename(filePath)}...`);
+    console.warn(`\n[App] ⚠️ WARNING: Attempting to overwrite ${path.basename(filePath)}...`);
     try {
         fs.writeFileSync(filePath, newCode, 'utf8');
-        console.log(`✅ Successfully updated ${filePath}.`);
+        console.log(`[App] ✅ Successfully updated ${filePath}.`);
         return true;
     }
     catch (writeError) {
-        console.error(`❌ Error writing file ${filePath}:`);
-        if (writeError instanceof Error) {
-            console.error(writeError.message);
-        }
-        else {
-            console.error("An unknown error occurred during file write.");
-        }
+        console.error(`[App] ❌ Error writing file ${filePath}:`);
+        // ... (error logging) ...
         return false;
     }
-}
-/**
- * Parses command line arguments to determine the desired enhancement type.
- * Exits the process if no argument or an invalid argument is provided.
- * @returns The validated EnhancementType from the command-line arguments.
- */
-function parseArguments() {
-    // ... (implementation remains the same - now recognizes ConsolidateAndAnalyze) ...
-    const args = process.argv.slice(2);
-    const requestedEnhancement = args[0];
-    if (!requestedEnhancement) {
-        console.error("\n❌ Error: Please provide an enhancement type as a command-line argument.");
-        console.log("   Example: npm start AddComments");
-        console.log("Available types:", Object.values(enhancement_type_1.EnhancementType).join(', '));
-        process.exit(1);
-    }
-    if (!(0, enhancement_type_1.isValidEnhancementType)(requestedEnhancement)) {
-        console.error(`\n❌ Error: Invalid enhancement type "${requestedEnhancement}".`);
-        console.log("Available types:", Object.values(enhancement_type_1.EnhancementType).join(', '));
-        process.exit(1);
-    }
-    return requestedEnhancement;
 }
 /**
  * The main function that orchestrates the code enhancement process.
  */
 async function main() {
-    const actionType = parseArguments(); // Changed variable name for clarity
-    console.log(`Selected action: ${actionType}`);
-    let codeToProcess;
-    let isModificationAllowed = false; // Flag to control if file update happens
-    // --- Determine the code source and action ---
-    if (actionType === enhancement_type_1.EnhancementType.ConsolidateAndAnalyze) {
-        console.log("\nAction requires consolidation...");
-        try {
-            // Consolidate from the project's root directory
-            const projectRoot = process.cwd(); // Or get from config if needed
-            codeToProcess = await (0, inspector_service_1.getConsolidatedSources)(projectRoot);
-            // We don't modify files when just consolidating and analyzing
-            isModificationAllowed = false;
-            console.log("Consolidation complete. Proceeding to analysis...");
-        }
-        catch (consolidationError) {
-            console.error("❌ Failed during code consolidation step:", consolidationError);
-            process.exit(1);
-        }
-    }
-    else {
-        // For other actions, read the specifically configured target file
-        console.log("\nAction targets specific code file...");
-        try {
-            const originalCode = readCodeFile(config_1.CODE_FILE_PATH);
-            codeToProcess = originalCode; // The code to send to Gemini is from the file
-            // Only allow modification for specific types like AddComments
-            isModificationAllowed = (actionType === enhancement_type_1.EnhancementType.AddComments);
-            if (!codeToProcess && codeToProcess !== '') {
-                throw new Error("Read code file but result was empty or invalid.");
+    const { action, targetPath, prefix } = parseArguments();
+    console.log(`\nSelected action: ${action} on target: ${targetPath}${prefix ? ` with prefix: ${prefix}` : ''}`);
+    // --- Determine if the action intends to modify files ---
+    // Add other modifying actions here in the future
+    const isModificationAction = (action === enhancement_type_1.EnhancementType.AddComments);
+    try {
+        const stats = fs.statSync(targetPath);
+        let targetFiles = []; // List of absolute file paths to process
+        // --- Identify target files ---
+        if (stats.isDirectory()) {
+            console.log(`[App] Target is a directory. Finding relevant files...`);
+            targetFiles = await (0, inspector_service_1.getTargetFiles)(targetPath, prefix);
+            if (targetFiles.length === 0) {
+                console.log("\n[App] No relevant files found in the target directory matching criteria. Exiting.");
+                return; // Exit gracefully
             }
+            console.log(`[App] Found ${targetFiles.length} files to process.`);
         }
-        catch (error) {
-            console.error(`Failed to read initial code file (${config_1.CODE_FILE_PATH}). Exiting.`);
+        else if (stats.isFile()) {
+            console.log(`[App] Target is a single file.`);
+            targetFiles.push(path.resolve(targetPath)); // Use the single resolved file path
+        }
+        else {
+            console.error(`\n❌ Error: Target path ${targetPath} is neither a file nor a directory.`);
             process.exit(1);
         }
-    }
-    // --- Determine the type of enhancement to request from Gemini ---
-    let geminiEnhancementRequestType;
-    if (actionType === enhancement_type_1.EnhancementType.ConsolidateAndAnalyze) {
-        geminiEnhancementRequestType = enhancement_type_1.EnhancementType.Analyze; // Analyze the consolidated code
-    }
-    else {
-        geminiEnhancementRequestType = actionType; // Use the action type directly
-    }
-    // --- Call the Gemini service ---
-    console.log(`\nInvoking Gemini service for enhancement: ${geminiEnhancementRequestType}...`);
-    const result = await (0, gemini_service_1.enhanceCodeWithGemini)(geminiEnhancementRequestType, codeToProcess);
-    // --- Process the result from the service ---
-    console.log("\nProcessing Gemini service result...");
-    switch (result.type) {
-        case 'code':
-            // Handle results where code modification was expected (e.g., AddComments)
-            if (result.content) {
-                if (isModificationAllowed) {
-                    // Compare with the ORIGINAL code read from the file, not the consolidated one
-                    const originalCodeForComparison = readCodeFile(config_1.CODE_FILE_PATH); // Re-read for safety? Or use stored 'originalCode'
-                    if (originalCodeForComparison.trim() !== result.content.trim()) {
-                        console.log("\n✨ Proposed code changes detected from Gemini!");
-                        console.log(`--- Proposed Code Snippet for ${path.basename(config_1.CODE_FILE_PATH)} (first 20 lines) ---`);
-                        console.log(result.content.split('\n').slice(0, 20).join('\n'));
-                        if (result.content.split('\n').length > 20)
-                            console.log('...');
-                        console.log("-----------------------------------------------------");
-                        updateCodeFile(config_1.CODE_FILE_PATH, result.content); // Attempt to overwrite the specific target file
+        // --- Process based on action type ---
+        if (isModificationAction) {
+            // --- MODIFICATION FLOW (Process files individually) ---
+            console.log(`\n[App] Starting modification action '${action}' on ${targetFiles.length} file(s)...`);
+            let successCount = 0;
+            let unchangedCount = 0;
+            let errorCount = 0;
+            for (const filePath of targetFiles) {
+                const relativeFilePath = path.relative(process.cwd(), filePath);
+                console.log(`\n--- Processing file: ${relativeFilePath} ---`);
+                try {
+                    const originalCode = readSingleCodeFile(filePath);
+                    console.log(`[App] Sending '${relativeFilePath}' to Gemini for '${action}'...`);
+                    const result = await (0, gemini_service_1.enhanceCodeWithGemini)(action, originalCode);
+                    if (result.type === 'code' && result.content) {
+                        if (originalCode.trim() !== result.content.trim()) {
+                            console.log(`[App] ✨ Changes detected for ${relativeFilePath}.`);
+                            const updated = updateCodeFile(filePath, result.content);
+                            if (updated)
+                                successCount++;
+                            else
+                                errorCount++;
+                        }
+                        else {
+                            console.log(`[App] ✅ No changes needed for ${relativeFilePath}.`);
+                            unchangedCount++;
+                        }
+                    }
+                    else if (result.type === 'error') {
+                        console.error(`[App] ❌ Gemini service failed for ${relativeFilePath}: ${result.content}`);
+                        errorCount++;
                     }
                     else {
-                        console.log("\n✅ Gemini response code seems identical to original code. No file update needed.");
+                        console.warn(`[App] ⚠️ Received unexpected result type '${result.type}' (expected 'code') for ${relativeFilePath}. No changes applied.`);
+                        errorCount++;
                     }
                 }
-                else {
-                    console.log("\nℹ️ Gemini returned code, but modification is not enabled for this action type.");
-                    console.log("--- Received Code Snippet (first 20 lines) ---");
-                    console.log(result.content.split('\n').slice(0, 20).join('\n'));
-                    if (result.content.split('\n').length > 20)
-                        console.log('...');
-                    console.log("----------------------------------------------");
+                catch (fileProcessingError) {
+                    console.error(`[App] ❌ Error processing file ${relativeFilePath}: ${fileProcessingError instanceof Error ? fileProcessingError.message : fileProcessingError}`);
+                    errorCount++;
+                }
+                console.log(`--- Finished processing: ${relativeFilePath} ---`);
+            }
+            console.log("\n--- Modification Summary ---");
+            console.log(`  Processed: ${targetFiles.length} file(s)`);
+            console.log(`  Updated:   ${successCount}`);
+            console.log(`  Unchanged: ${unchangedCount}`);
+            console.log(`  Errors:    ${errorCount}`);
+            console.log("--------------------------");
+        }
+        else {
+            // --- NON-MODIFICATION FLOW (Analyze/Explain - may involve consolidation) ---
+            let codeToAnalyze;
+            let geminiRequestType = action; // Analyze, Explain, ConsolidateAndAnalyze
+            if (stats.isDirectory() || action === enhancement_type_1.EnhancementType.ConsolidateAndAnalyze) {
+                // Consolidate content from all target files for analysis/explanation
+                console.log(`\n[App] Consolidating ${targetFiles.length} file(s) for non-modification action '${action}'...`);
+                // IMPORTANT: We need the absolute path of the original target directory for consolidation header/paths
+                const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetFiles[0]); // Best guess if single file C&A
+                codeToAnalyze = await (0, inspector_service_1.getConsolidatedSources)(consolidationRoot, prefix); // Use original target path for root
+                // If original action was ConsolidateAndAnalyze, the AI task is Analyze
+                if (action === enhancement_type_1.EnhancementType.ConsolidateAndAnalyze) {
+                    geminiRequestType = enhancement_type_1.EnhancementType.Analyze;
                 }
             }
             else {
-                console.error("❌ Internal Error: Gemini service result type is 'code' but content is missing.");
+                // Action is Analyze/Explain on a single file
+                codeToAnalyze = readSingleCodeFile(targetFiles[0]); // Read the single file
             }
-            break;
-        case 'text':
-            // Handle results that are purely textual (e.g., Analyze, Explain)
-            console.log(`\n--- Gemini ${geminiEnhancementRequestType} Result ---`); // Use the type sent to Gemini
-            console.log(result.content ?? 'Gemini returned empty text content.');
-            console.log(`--- End ${geminiEnhancementRequestType} Result ---\n`);
-            break;
-        case 'error':
-            // Handle errors reported by the Gemini service itself
-            console.error(`\n❌ Enhancement process failed: ${result.content ?? 'No specific error message provided.'}`);
-            break;
-        default:
-            // Should be unreachable
-            const exhaustiveCheck = result;
-            console.error(`Internal Error: Unhandled result type encountered in switch. Result object:`, exhaustiveCheck);
-            throw new Error(`Unhandled GeminiEnhancementResult type: ${exhaustiveCheck?.type ?? 'unknown type'}`);
+            console.log(`\n[App] Invoking Gemini service for action: ${geminiRequestType}...`);
+            const result = await (0, gemini_service_1.enhanceCodeWithGemini)(geminiRequestType, codeToAnalyze);
+            if (result.type === 'text') {
+                console.log(`\n--- Gemini ${geminiRequestType} Result ---`);
+                console.log(result.content ?? 'Gemini returned empty text content.');
+                console.log(`--- End ${geminiRequestType} Result ---\n`);
+            }
+            else if (result.type === 'error') {
+                console.error(`\n[App] ❌ Gemini service failed: ${result.content}`);
+            }
+            else {
+                console.warn(`[App] ⚠️ Received unexpected result type '${result.type}' (expected 'text') for ${geminiRequestType} action.`);
+                // Optionally print the code content if received unexpectedly
+                if (result.content) {
+                    console.log("--- Unexpected Code Snippet (first 20 lines) ---");
+                    console.log(result.content.split('\n').slice(0, 20).join('\n') + (result.content.split('\n').length > 20 ? '\n...' : ''));
+                    console.log("----------------------------------------------");
+                }
+            }
+        }
+    }
+    catch (error) { // Catch errors from initial statSync or getTargetFiles etc.
+        console.error("\n❌ Error determining or accessing target path(s):", error instanceof Error ? error.message : error);
+        process.exit(1);
     }
     console.log("\nScript execution finished.");
 }
 // Execute main function with top-level error catching
 main().catch(error => {
     console.error("\n🚨 An unexpected critical error occurred during execution:");
-    if (error instanceof Error) {
-        console.error(error.message);
-        // console.error(error.stack); // Optional: log stack trace for debugging
-    }
-    else {
-        console.error(error);
-    }
-    process.exit(1); // Exit with failure code on unhandled errors
+    // ... (error logging remains the same) ...
+    process.exit(1);
 });
 //# sourceMappingURL=app.js.map
