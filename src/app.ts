@@ -8,9 +8,15 @@ import { EnhancementType, isValidEnhancementType } from './shared/types/enhancem
 import { getConsolidatedSources, getTargetFiles } from './inspector/inspector.service';
 
 // --- Argument Parsing Interface ---
+/**
+ * Represents the parsed command-line arguments.
+ */
 interface ParsedArgs {
+	/** The type of enhancement to perform. */
 	action: EnhancementType;
+	/** The target file or directory path. */
 	targetPath: string; // Target file or directory path - NOW REQUIRED
+	/** An optional filename prefix for consolidation/directory processing. */
 	prefix?: string;     // Optional filename prefix for consolidation/directory processing
 }
 

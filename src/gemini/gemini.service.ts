@@ -19,8 +19,10 @@ function generatePrompt(enhancement: EnhancementType, code: string): string {
     switch (enhancement) {
         case EnhancementType.AddComments:
             return `
-Review the following TypeScript code and add detailed JSDoc comments for functions, classes, and complex logic, as well as inline comments where necessary for clarity.
-**IMPORTANT: Respond with ONLY the complete, updated TypeScript code block itself, including the added comments. Do not include any explanatory text before or after the code block.**
+Review the following TypeScript code. Add comprehensive TSDoc/JSDoc comments /** ... */ for all exported functions, classes, interfaces, and types. Include @param, @returns, and @throws tags where appropriate.
+Also add concise inline comments // using // for complex or non-obvious implementation logic within functions or methods.
+Ensure existing comments are preserved or improved if necessary.
+**IMPORTANT: Respond ONLY with the complete, updated TypeScript code block itself, including the added comments. Do not include any explanatory text before or after the code block.**
 
 \`\`\`typescript
 ${code}
