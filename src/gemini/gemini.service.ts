@@ -1,8 +1,8 @@
 // src/gemini/gemini.service.ts
 import axios, { AxiosError, AxiosResponse } from 'axios';
-import { EnhancementType } from '../../shared/types/enhancement.type';
-import { GEMINI_API_KEY, GEMINI_API_ENDPOINT } from '../../config';
-import { extractCodeBlock } from '../utils/code.extractor';
+import { EnhancementType } from '../shared/types/enhancement.type';
+import { GEMINI_API_KEY, GEMINI_API_ENDPOINT } from '../config';
+import { extractCodeBlock } from './utils/code.extractor';
 // --- IMPORT PATHS UPDATED ---
 // --- END IMPORT PATHS UPDATED ---
 
@@ -149,7 +149,7 @@ export async function enhanceCodeWithGemini(
             return { type: 'text', content: rawResponse };
         default:
             // This should technically be caught by earlier validation, but good as a safeguard
-            const exhaustiveCheck: never = enhancementType;
+            const exhaustiveCheck: unknown = enhancementType;
             console.error(`Unhandled enhancement type in processing: ${exhaustiveCheck}`);
             return { type: 'error', content: `Unhandled enhancement type: ${enhancementType}` };
     }

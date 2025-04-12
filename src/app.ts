@@ -110,7 +110,7 @@ async function main() {
     // For other actions, read the specifically configured target file
     console.log("\nAction targets specific code file...");
     try {
-      originalCode = readCodeFile(CODE_FILE_PATH);
+      const originalCode = readCodeFile(CODE_FILE_PATH);
       codeToProcess = originalCode; // The code to send to Gemini is from the file
       // Only allow modification for specific types like AddComments
       isModificationAllowed = (actionType === EnhancementType.AddComments);

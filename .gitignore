@@ -2,4 +2,4 @@
 
 node_modules/
 .env
-dist/ # Add this line
+dist/
