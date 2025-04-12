@@ -189,6 +189,10 @@ async function main() {
 
 					// Process Gemini's result for this file
 					if (result.type === 'code' && result.content) {
+						console.log(`--- Extracted Code Preview for ${relativeFilePath} ---`);
+						console.log(result.content.substring(0, 500) + (result.content.length > 500 ? '...' : '')); // Log first 500 chars
+						console.log(`--- End Preview (${result.content.length} chars) ---`);
+
 						if (originalCode.trim() !== result.content.trim()) {
 							console.log(`    ✨ Changes detected for ${relativeFilePath}.`);
 							const updated = updateCodeFile(absoluteFilePath, result.content);

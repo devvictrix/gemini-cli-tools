@@ -30,7 +30,9 @@ function generatePrompt(enhancement: EnhancementType, code: string): string {
 Review the following TypeScript code. Add comprehensive TSDoc/JSDoc comments /** ... */ for all exported functions, classes, interfaces, and types. Include @param, @returns, and @throws tags where appropriate.
 Also add concise inline comments // using // for complex or non-obvious implementation logic within functions or methods.
 Ensure existing comments are preserved or improved if necessary.
-**IMPORTANT: Respond ONLY with the complete, updated TypeScript code block itself, including the added comments. Do not include any explanatory text before or after the code block.**
+
+**CRITICAL INSTRUCTION:** You MUST return the **ENTIRE, COMPLETE, ORIGINAL FILE CONTENT**, including all existing code and comments, with ONLY the new TSDoc/JSDoc and inline comments added or updated as requested. Do NOT omit any part of the original file.
+**RESPONSE FORMAT:** Respond ONLY with the full, updated TypeScript code block itself, enclosed in \`\`\`typescript ... \`\`\`. Do not include ANY introductory text, closing remarks, or explanations outside the code block.
 
 \`\`\`typescript
 ${code}
