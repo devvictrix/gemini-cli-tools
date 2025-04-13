@@ -55,10 +55,9 @@ function parseArguments(): ParsedArgs {
 		console.log("\nUsage: npm start <ActionType> <TargetPath> [FilePrefix]");
 		console.log("\nExamples:");
 		console.log("  npm start AddComments src/app.ts");
-		console.log("  npm start Analyze ./src"); // Analyze on dir implies consolidation
-		console.log("  npm start Explain src/gemini/gemini.service.ts");
+		console.log("  npm start Analyze ./src");
 		console.log("  npm start AddPathComment ./src");
-		// console.log("  npm start ConsolidateAndAnalyze ./src api"); // <-- REMOVED THIS EXAMPLE
+		console.log("  npm start Consolidate ./src"); // <-- Add example
 		console.log("\nAvailable Action Types:", Object.values(EnhancementType).join(', '));
 		process.exit(1);
 	}
@@ -76,7 +75,6 @@ function parseArguments(): ParsedArgs {
 		process.exit(1);
 	}
 	try {
-		// Basic check if the path exists and is accessible
 		fs.accessSync(targetPath);
 	} catch (e) {
 		console.error(`\n❌ Error: Cannot access target path: ${targetPath}. Please ensure it exists.`);
@@ -127,22 +125,41 @@ function updateCodeFile(filePath: string, newCode: string): boolean {
 	}
 }
 
+/**
+ * Writes content to a specified output file.
+ * @param outputFilePath The absolute path for the output file.
+ * @param content The content string to write.
+ * @returns True if writing was successful, false otherwise.
+ */
+function writeOutputFile(outputFilePath: string, content: string): boolean {
+	const relativeOutputPath = path.relative(process.cwd(), outputFilePath).split(path.sep).join('/');
+	console.log(`[App] Writing consolidated content to ${relativeOutputPath}...`);
+	try {
+		fs.writeFileSync(outputFilePath, content, 'utf8');
+		console.log(`[App] ✅ Successfully wrote ${content.length} characters to ${relativeOutputPath}.`);
+		return true;
+	} catch (writeError) {
+		console.error(`[App] ❌ Error writing output file ${relativeOutputPath}: ${writeError instanceof Error ? writeError.message : writeError}`);
+		return false;
+	}
+}
+
+
 // --- Main Execution Logic ---
 async function main() {
 	const { action, targetPath, prefix } = parseArguments();
 	console.log(`\nSelected action: ${action} on target: ${targetPath}${prefix ? ` with prefix: ${prefix}` : ''}`);
 
-	const isModificationAction = [
+	const isModificationAction = [ // Actions that modify existing source files
 		EnhancementType.AddComments,
 		EnhancementType.AddPathComment,
 	].includes(action);
 
-	// Define actions that use Gemini
+	// Define actions that use the Gemini API
 	const usesGeminiApi = [
 		EnhancementType.AddComments,
 		EnhancementType.Analyze,
 		EnhancementType.Explain,
-		// EnhancementType.ConsolidateAndAnalyze, // <-- REMOVED
 	].includes(action);
 
 	try {
@@ -157,14 +174,14 @@ async function main() {
 				console.log("\n[App] No relevant files found matching criteria or remaining after exclusions. Exiting.");
 				return;
 			}
-			console.log(`[App] Found ${targetFiles.length} files to process.`);
+			console.log(`[App] Found ${targetFiles.length} files to process for action '${action}'.`);
 		} else if (stats.isFile()) {
 			const filename = path.basename(targetPath);
 			if (EXCLUDE_FILENAMES.has(filename)) { // Check exclusion for single files
 				console.log(`[App] Target file ${filename} is excluded by configuration.`);
 				return;
 			}
-			console.log(`[App] Target is a single file.`);
+			console.log(`[App] Target is a single file for action '${action}'.`);
 			targetFiles.push(path.resolve(targetPath));
 		} else {
 			console.error(`\n❌ Error: Target path ${targetPath} is neither a file nor a directory.`);
@@ -174,12 +191,13 @@ async function main() {
 		// --- Process based on action type ---
 
 		if (isModificationAction) {
-			// --- MODIFICATION FLOW (Parallel Processing) ---
+			// --- MODIFICATION FLOW (AddComments, AddPathComment) ---
 			const concurrencyLimit = 10;
 			const limit = pLimit(concurrencyLimit);
 			console.log(`\n[App] Starting PARALLEL modification action '${action}' on ${targetFiles.length} file(s) with concurrency ${concurrencyLimit}...`);
 			let fileProcessor: (absoluteFilePath: string) => Promise<FileProcessingResult>;
 
+			// --- Processor for AddComments ---
 			if (action === EnhancementType.AddComments) {
 				fileProcessor = async (absoluteFilePath): Promise<FileProcessingResult> => {
 					const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
@@ -189,10 +207,10 @@ async function main() {
 						const result: GeminiEnhancementResult = await enhanceCodeWithGemini(action, originalCode); // Call Gemini
 
 						if (result.type === 'code' && result.content) {
-							// Optional preview log
-							console.log(`--- Extracted Code Preview for ${relativeFilePath} ---`);
-							console.log(result.content.substring(0, 300) + (result.content.length > 300 ? '...' : ''));
-							console.log(`--- End Preview (${result.content.length} chars) ---`);
+							// Optional preview log (can be removed if too verbose)
+							// console.log(`--- Extracted Code Preview for ${relativeFilePath} ---`);
+							// console.log(result.content.substring(0, 300) + (result.content.length > 300 ? '...' : ''));
+							// console.log(`--- End Preview (${result.content.length} chars) ---`);
 
 							if (originalCode.trim() !== result.content.trim()) {
 								console.log(`    ✨ Changes detected for ${relativeFilePath}.`);
@@ -214,6 +232,7 @@ async function main() {
 						return { filePath: relativeFilePath, status: 'error', message: `File Processing Error: ${fileProcessingError instanceof Error ? fileProcessingError.message : fileProcessingError}` };
 					}
 				};
+				// --- Processor for AddPathComment ---
 			} else if (action === EnhancementType.AddPathComment) {
 				fileProcessor = async (absoluteFilePath): Promise<FileProcessingResult> => {
 					const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/'); // Use forward slashes
@@ -324,7 +343,7 @@ async function main() {
 			if (errorCount > 0) process.exitCode = 1;
 
 		} else if (usesGeminiApi) {
-			// --- NON-MODIFICATION FLOW using GEMINI (Analyze/Explain) ---
+			// --- NON-MODIFICATION FLOW using GEMINI (Analyze, Explain) ---
 			let codeToProcess: string;
 			const geminiRequestType = action; // For Analyze/Explain
 
@@ -334,7 +353,6 @@ async function main() {
 				codeToProcess = await getConsolidatedSources(consolidationRoot, prefix); // Use filesystem service
 			} else { // Handle Analyze/Explain on a single file
 				if (targetFiles.length !== 1) {
-					// This check is mostly for internal consistency
 					console.error(`[App] Internal Error: Expected 1 target file for ${action} on a file path, but found ${targetFiles.length}.`);
 					process.exit(1);
 				}
@@ -364,8 +382,37 @@ async function main() {
 				}
 			}
 
+		} else if (action === EnhancementType.Consolidate) {
+			// --- CONSOLIDATE FLOW (No Gemini, No Source Modification) ---
+			console.log(`\n[App] Starting action '${action}' on ${targetFiles.length} file(s)...`);
+
+			// Determine root for consolidation (needed for relative paths in output header)
+			// Use targetPath if directory, or parent dir if single file was given
+			const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetPath);
+
+			// Generate the consolidated content string using the *already identified* targetFiles
+			// We need to ensure getConsolidatedSources can work with a list of files if needed,
+			// or we adapt here. Let's assume getConsolidatedSources uses the rootDir and prefix.
+			// For accuracy if a single file was passed, we might only consolidate that one file.
+			// Let's stick to the original getConsolidatedSources behavior for simplicity now.
+			console.log(`[App] Consolidating from root: ${consolidationRoot} ${prefix ? `with prefix '${prefix}'` : ''}...`);
+			const consolidatedContent = await getConsolidatedSources(consolidationRoot, prefix);
+
+			// Define the output file path (relative to CWD)
+			const outputFileName = 'consolidated_output.txt';
+			const outputFilePath = path.resolve(process.cwd(), outputFileName);
+
+			// Write the content to the output file
+			const success = writeOutputFile(outputFilePath, consolidatedContent);
+
+			if (!success) {
+				process.exitCode = 1; // Set exit code on write failure
+			} else {
+				console.log(`\n➡️ You can now copy the content from: ${outputFileName}`);
+			}
+
 		} else {
-			// Catch any action that isn't modification and doesn't use Gemini
+			// Catch any action that isn't modification and doesn't use Gemini and isn't Consolidate
 			console.error(`[App] Internal Error: Action "${action}" was not handled by any processing flow.`);
 			process.exit(1);
 		}
