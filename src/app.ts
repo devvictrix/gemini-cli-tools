@@ -12,8 +12,7 @@ import { EnhancementType } from './shared/types/enhancement.type.js'; // Enum de
 // Import shared utilities and constants from their new locations
 import { EXCLUDE_FILENAMES } from './shared/constants/filesystem.constants.js'; // Filesystem exclusion constants
 import { inferTypesFromData } from './shared/helpers/type-inference.helper.js'; // Local type inference logic
-import { readSingleFile, updateFileContent, writeOutputFile } from './shared/helpers/file-io.helper.js';
-import { getConsolidatedSources, getTargetFiles } from './shared/index.js';
+import { getConsolidatedSources, getTargetFiles, readSingleFile, updateFileContent, writeOutputFile } from './shared/index.js';
 
 // --- Interfaces ---
 
