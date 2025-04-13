@@ -8,7 +8,7 @@
     "clean": "rimraf ./dist",
     "build": "npm run clean && tsc",
     "start": "node dist/app.js",
-    "dev": "tsx src/index.ts",
+    "dev": "tsx src/app.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

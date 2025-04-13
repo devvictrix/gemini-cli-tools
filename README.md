@@ -7,11 +7,11 @@ This project provides a command-line tool that leverages the Google Gemini API t
 
 ### Key Components
 
-#### 1. `src/index.ts` (Main Application Logic)
+#### 1. `src/app.ts` (Main Application Logic)
 
 -   **Responsibilities:**
     -   Parses command-line arguments using `yargs`.
-    -   Determines the action to be performed (e.g., `AddComments`, `Analyze`).
+    -   Determines the action to be performed (e.g., `AddComments`, `Analyze`).,
     -   Identifies target files based on the provided path (file or directory).
     -   Orchestrates the execution of the selected action, including:
         -   Reading code files.
@@ -101,10 +101,10 @@ This project provides a command-line tool that leverages the Google Gemini API t
 #### 1. Adding Comments to a File
 
 ```bash
-npm run dev AddComments src/index.ts
+npm run dev AddComments src/app.ts
 ```
 
-This command will add AI-generated comments to the `src/index.ts` file using the Gemini API.
+This command will add AI-generated comments to the `src/app.ts` file using the Gemini API.
 
 #### 2. Analyzing a Directory of Code
 
