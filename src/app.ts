@@ -1,5 +1,4 @@
 // File: src/app.ts
-// Updated to write GenerateDocs output to docs.md
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -7,7 +6,7 @@ import pLimit from 'p-limit';
 import yargs, { Argv } from 'yargs'; // Import Argv type directly
 import { hideBin } from 'yargs/helpers';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from './gemini/gemini.service.js';
-import { EnhancementType, isValidEnhancementType } from './shared/types/enhancement.type.js';
+import { EnhancementType } from './shared/types/enhancement.type.js';
 import { getConsolidatedSources, getTargetFiles } from './filesystem/filesystem.service.js';
 import { EXCLUDE_FILENAMES } from './filesystem/filesystem.config.js';
 import { inferTypesFromData } from './inference/local-type-inference.service.js';
@@ -263,7 +262,7 @@ async function runMainLogic(argv: AppArguments) {
 			if (result.type === 'text' && result.content !== null) {
 				// Check if the original action was GenerateDocs
 				if (geminiRequestType === EnhancementType.GenerateDocs) {
-					const outputFileName = 'docs.md';
+					const outputFileName = 'README.md';
 					const outputFilePath = path.resolve(process.cwd(), outputFileName);
 					console.log(`\n[App] Attempting to write generated documentation to ${outputFileName}...`);
 					const success = writeOutputFile(outputFilePath, result.content);
@@ -487,7 +486,7 @@ yargs(hideBin(process.argv))
 	)
 	.command(
 		`${EnhancementType.GenerateDocs} <targetPath>`,
-		'Generate Markdown documentation for the code and save to docs.md.', // Updated description
+		'Generate Markdown documentation for the code and save to README.md.',
 		setupDefaultCommand,
 		(argv) => runMainLogic({ ...argv, command: EnhancementType.GenerateDocs } as AppArguments)
 	)
