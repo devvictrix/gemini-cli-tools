@@ -2,4 +2,5 @@
 
 node_modules/
 .env
+consolidated_output.txt
 dist/
