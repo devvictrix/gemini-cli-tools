@@ -1,5 +1,5 @@
 // File: src/app.ts
-// Corrected yargs import and wrap call
+// Updated to write GenerateDocs output to docs.md
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -75,7 +75,7 @@ function updateCodeFile(filePath: string, newCode: string): boolean {
 }
 
 /**
- * Writes content to a specified output file.
+ * Writes content to a specified output file. Creates parent directory if needed.
  * @param outputFilePath The absolute path for the output file.
  * @param content The content string to write.
  * @returns True if writing was successful, false otherwise.
@@ -85,7 +85,11 @@ function writeOutputFile(outputFilePath: string, content: string): boolean {
 	console.log(`[App] Writing output to ${relativeOutputPath}...`);
 	try {
 		const outputDir = path.dirname(outputFilePath);
+		// Ensure directory exists before writing
+		// Use fs.promises.mkdir for async consistency if this function becomes async
+		// For sync, fs.mkdirSync is fine.
 		if (!fs.existsSync(outputDir)) {
+			// recursive: true creates parent directories if they don't exist
 			fs.mkdirSync(outputDir, { recursive: true });
 			console.log(`[App] Created directory: ${path.relative(process.cwd(), outputDir)}`);
 		}
@@ -108,7 +112,6 @@ async function runMainLogic(argv: AppArguments) {
 	const { command: action, targetPath, prefix, interfaceName } = argv;
 	console.log(`\nSelected action: ${action} on target: ${targetPath}${prefix ? ` with prefix: ${prefix}` : ''}${interfaceName ? ` (Interface: ${interfaceName})` : ''}`);
 
-	// --- Validate Target Path Access and Type ---
 	let stats: fs.Stats;
 	try {
 		stats = fs.statSync(targetPath);
@@ -121,7 +124,6 @@ async function runMainLogic(argv: AppArguments) {
 		process.exit(1);
 	}
 
-	// Determine action categories
 	const isModificationAction = [
 		EnhancementType.AddComments,
 		EnhancementType.AddPathComment,
@@ -234,7 +236,7 @@ async function runMainLogic(argv: AppArguments) {
 		} else if (usesGeminiApi && !isModificationAction) {
 			// --- NON-MODIFICATION FLOW using GEMINI ---
 			let codeToProcess: string;
-			const geminiRequestType = action;
+			const geminiRequestType = action; // Keep track of the original action requested
 
 			if (stats.isDirectory() || targetFiles.length > 1) {
 				console.log(`\n[App] Consolidating ${targetFiles.length} file(s) for Gemini action '${action}'...`);
@@ -257,14 +259,31 @@ async function runMainLogic(argv: AppArguments) {
 			console.log(`\n[App] Invoking Gemini service for action: ${geminiRequestType}...`);
 			const result: GeminiEnhancementResult = await enhanceCodeWithGemini(geminiRequestType, codeToProcess);
 
+			// --- Handle Gemini Result ---
 			if (result.type === 'text' && result.content !== null) {
-				console.log(`\n--- Gemini ${geminiRequestType} Result ---`);
-				console.log(result.content);
-				console.log(`--- End ${geminiRequestType} Result ---\n`);
+				// Check if the original action was GenerateDocs
+				if (geminiRequestType === EnhancementType.GenerateDocs) {
+					const outputFileName = 'docs.md';
+					const outputFilePath = path.resolve(process.cwd(), outputFileName);
+					console.log(`\n[App] Attempting to write generated documentation to ${outputFileName}...`);
+					const success = writeOutputFile(outputFilePath, result.content);
+					if (!success) {
+						console.error(`[App] ❌ Failed to write documentation file.`);
+						process.exitCode = 1; // Indicate failure
+					} else {
+						console.log(`\n➡️ Generated documentation saved to: ${outputFileName}`);
+					}
+				} else {
+					// For other text-based actions (Analyze, Explain, Suggest), print to console
+					console.log(`\n--- Gemini ${geminiRequestType} Result ---`);
+					console.log(result.content);
+					console.log(`--- End ${geminiRequestType} Result ---\n`);
+				}
 			} else if (result.type === 'error') {
 				console.error(`\n[App] ❌ Gemini service failed: ${result.content ?? 'No specific error message provided.'}`);
 				process.exitCode = 1;
 			} else {
+				// Handle unexpected non-error, non-text result (e.g., got 'code' for 'Analyze')
 				console.warn(`[App] ⚠️ Received unexpected result type '${result.type}' or null content (expected 'text') for ${geminiRequestType} action.`);
 				if (result.content) {
 					console.log("--- Unexpected Content Received ---");
@@ -402,6 +421,7 @@ async function runMainLogic(argv: AppArguments) {
 		console.error("\n❌ An error occurred during script execution:");
 		if (error instanceof Error) {
 			console.error(`   Message: ${error.message}`);
+			// console.error(error.stack); // Uncomment for full stack trace
 		} else {
 			console.error("   Unknown error object:", error);
 		}
@@ -413,8 +433,6 @@ async function runMainLogic(argv: AppArguments) {
 
 // --- Argument Parsing and Execution ---
 
-// Helper function to set up common options for most commands
-// Use the imported Argv type here
 const setupDefaultCommand = (yargsInstance: Argv<{}>): Argv<{ targetPath: string; prefix: string | undefined }> => {
 	return yargsInstance
 		.positional('targetPath', {
@@ -430,7 +448,6 @@ const setupDefaultCommand = (yargsInstance: Argv<{}>): Argv<{ targetPath: string
 		});
 };
 
-// Use yargs to parse arguments and run the main logic
 yargs(hideBin(process.argv))
 	.command(
 		`${EnhancementType.AddComments} <targetPath>`,
@@ -470,14 +487,14 @@ yargs(hideBin(process.argv))
 	)
 	.command(
 		`${EnhancementType.GenerateDocs} <targetPath>`,
-		'Generate Markdown documentation for the code.',
+		'Generate Markdown documentation for the code and save to docs.md.', // Updated description
 		setupDefaultCommand,
 		(argv) => runMainLogic({ ...argv, command: EnhancementType.GenerateDocs } as AppArguments)
 	)
 	.command(
 		`${EnhancementType.InferFromData} <targetPath>`,
 		'Infer TypeScript interface from data file (JSON).',
-		(yargsInstance) => { // Explicit type for builder function instance
+		(yargsInstance) => {
 			return yargsInstance
 				.positional('targetPath', {
 					describe: 'Path to the data file (e.g., data.json)',
@@ -497,7 +514,7 @@ yargs(hideBin(process.argv))
 	.strict()
 	.help()
 	.alias('h', 'help')
-	.wrap(null) // Let yargs determine terminal width automatically
+	.wrap(null)
 	.fail((msg, err, yargs) => {
 		if (err) {
 			console.error("\n🚨 An unexpected error occurred during argument parsing:");
