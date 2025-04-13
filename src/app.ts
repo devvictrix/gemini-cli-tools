@@ -7,7 +7,7 @@ import { enhanceCodeWithGemini, GeminiEnhancementResult } from './gemini/gemini.
 import { EnhancementType, isValidEnhancementType } from './shared/types/enhancement.type.js';
 // Assuming you've done the refactor to filesystem:
 import { getConsolidatedSources, getTargetFiles } from './filesystem/filesystem.service.js';
-import { EXCLUDE_FILENAMES } from './filesystem/filesystem.config.js';
+import { EXCLUDE_FILENAMES } from './filesystem/filesystem.config.js'; // Keep this if checking single files
 
 // --- Interfaces ---
 
@@ -55,10 +55,10 @@ function parseArguments(): ParsedArgs {
 		console.log("\nUsage: npm start <ActionType> <TargetPath> [FilePrefix]");
 		console.log("\nExamples:");
 		console.log("  npm start AddComments src/app.ts");
-		console.log("  npm start Analyze ./src");
-		console.log("  npm start AddPathComment ./src"); // Example for new command
-		console.log("  npm start AddPathComment ./src/shared types"); // Example with prefix
-		console.log("  npm start ConsolidateAndAnalyze ./src api");
+		console.log("  npm start Analyze ./src"); // Analyze on dir implies consolidation
+		console.log("  npm start Explain src/gemini/gemini.service.ts");
+		console.log("  npm start AddPathComment ./src");
+		// console.log("  npm start ConsolidateAndAnalyze ./src api"); // <-- REMOVED THIS EXAMPLE
 		console.log("\nAvailable Action Types:", Object.values(EnhancementType).join(', '));
 		process.exit(1);
 	}
@@ -132,10 +132,9 @@ async function main() {
 	const { action, targetPath, prefix } = parseArguments();
 	console.log(`\nSelected action: ${action} on target: ${targetPath}${prefix ? ` with prefix: ${prefix}` : ''}`);
 
-	// Define which actions modify files
 	const isModificationAction = [
 		EnhancementType.AddComments,
-		EnhancementType.AddPathComment, // Added new action
+		EnhancementType.AddPathComment,
 	].includes(action);
 
 	// Define actions that use Gemini
@@ -143,8 +142,8 @@ async function main() {
 		EnhancementType.AddComments,
 		EnhancementType.Analyze,
 		EnhancementType.Explain,
-		EnhancementType.ConsolidateAndAnalyze,
-	].includes(action); // AddPathComment does NOT use Gemini
+		// EnhancementType.ConsolidateAndAnalyze, // <-- REMOVED
+	].includes(action);
 
 	try {
 		const stats = fs.statSync(targetPath);
@@ -160,13 +159,10 @@ async function main() {
 			}
 			console.log(`[App] Found ${targetFiles.length} files to process.`);
 		} else if (stats.isFile()) {
-			// Check if the single file should be excluded based on filename config
 			const filename = path.basename(targetPath);
-			// A more complete solution might load EXCLUDE_FILENAMES from config here
-			// For now, we assume it passed if it got here (basic check)
-			if (EXCLUDE_FILENAMES.has(filename)) { // Example if config was loaded
-			    console.log(`[App] Target file ${filename} is excluded by configuration.`);
-			    return;
+			if (EXCLUDE_FILENAMES.has(filename)) { // Check exclusion for single files
+				console.log(`[App] Target file ${filename} is excluded by configuration.`);
+				return;
 			}
 			console.log(`[App] Target is a single file.`);
 			targetFiles.push(path.resolve(targetPath));
@@ -179,13 +175,11 @@ async function main() {
 
 		if (isModificationAction) {
 			// --- MODIFICATION FLOW (Parallel Processing) ---
-			const concurrencyLimit = 10; // Higher concurrency for local I/O
+			const concurrencyLimit = 10;
 			const limit = pLimit(concurrencyLimit);
 			console.log(`\n[App] Starting PARALLEL modification action '${action}' on ${targetFiles.length} file(s) with concurrency ${concurrencyLimit}...`);
-
 			let fileProcessor: (absoluteFilePath: string) => Promise<FileProcessingResult>;
 
-			// --- Select Processor for AddComments ---
 			if (action === EnhancementType.AddComments) {
 				fileProcessor = async (absoluteFilePath): Promise<FileProcessingResult> => {
 					const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
@@ -220,7 +214,6 @@ async function main() {
 						return { filePath: relativeFilePath, status: 'error', message: `File Processing Error: ${fileProcessingError instanceof Error ? fileProcessingError.message : fileProcessingError}` };
 					}
 				};
-				// --- Select Processor for AddPathComment ---
 			} else if (action === EnhancementType.AddPathComment) {
 				fileProcessor = async (absoluteFilePath): Promise<FileProcessingResult> => {
 					const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/'); // Use forward slashes
@@ -271,7 +264,7 @@ async function main() {
 							let tempLines = originalCode.split(/\r?\n/);
 
 							// Remove any existing path comment lines or blank lines from the very start
-							let linesRemoved = false;
+							let linesRemoved = false; // Keep track if we actually removed anything
 							while (tempLines.length > 0) {
 								const firstLineTrimmed = tempLines[0].trim();
 								if (pathCommentRegex.test(firstLineTrimmed) || firstLineTrimmed === '') {
@@ -299,19 +292,16 @@ async function main() {
 			} else {
 				// Fallback for unhandled modification actions
 				console.error(`[App] Internal Error: Unhandled modification action type "${action}" in processor selection.`);
-				// Assign a dummy processor to prevent runtime errors, it will return an error result
 				fileProcessor = async (absoluteFilePath) => ({
 					filePath: path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/'),
 					status: 'error',
 					message: `Unhandled modification action: ${action}`
 				});
 			}
-
-			// --- Run tasks in parallel ---
+			// Run tasks...
 			const tasks = targetFiles.map(filePath => limit(() => fileProcessor(filePath)));
 			const results: FileProcessingResult[] = await Promise.all(tasks);
-
-			// --- Aggregate and print summary ---
+			// Aggregate and print summary...
 			let successCount = 0;
 			let unchangedCount = 0;
 			let errorCount = 0;
@@ -321,12 +311,9 @@ async function main() {
 					case 'unchanged': unchangedCount++; break;
 					case 'error':
 						errorCount++;
-						// Optional: Log specific file errors again in summary
-						// console.error(`   - Error on ${res.filePath}: ${res.message}`);
 						break;
 				}
 			});
-
 			console.log("\n--- Parallel Modification Summary ---");
 			console.log(`  Action:              ${action}`);
 			console.log(`  Total Files Target:  ${targetFiles.length}`);
@@ -334,25 +321,18 @@ async function main() {
 			console.log(`  No Changes Needed:   ${unchangedCount}`);
 			console.log(`  Errors Encountered:    ${errorCount}`);
 			console.log("---------------------------------");
-			if (errorCount > 0) process.exitCode = 1; // Set exit code on error
+			if (errorCount > 0) process.exitCode = 1;
 
 		} else if (usesGeminiApi) {
-			// --- NON-MODIFICATION FLOW using GEMINI (Analyze/Explain/ConsolidateAndAnalyze) ---
+			// --- NON-MODIFICATION FLOW using GEMINI (Analyze/Explain) ---
 			let codeToProcess: string;
-			let geminiRequestType = action; // Usually same as action
+			const geminiRequestType = action; // For Analyze/Explain
 
-			if (action === EnhancementType.ConsolidateAndAnalyze) {
+			if (stats.isDirectory()) { // Handle Analyze/Explain on a directory
 				console.log(`\n[App] Consolidating ${targetFiles.length} file(s) for ${action}...`);
-				const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetFiles[0]);
+				const consolidationRoot = targetPath; // Must be directory
 				codeToProcess = await getConsolidatedSources(consolidationRoot, prefix); // Use filesystem service
-				geminiRequestType = EnhancementType.Analyze; // Override type for Gemini call
-			} else if (stats.isDirectory()) {
-				// Analyze/Explain on a directory implies consolidation first
-				console.log(`\n[App] Consolidating ${targetFiles.length} file(s) for ${action}...`);
-				const consolidationRoot = targetPath;
-				codeToProcess = await getConsolidatedSources(consolidationRoot, prefix); // Use filesystem service
-			} else {
-				// Action is Analyze/Explain on a single file
+			} else { // Handle Analyze/Explain on a single file
 				if (targetFiles.length !== 1) {
 					// This check is mostly for internal consistency
 					console.error(`[App] Internal Error: Expected 1 target file for ${action} on a file path, but found ${targetFiles.length}.`);
@@ -385,7 +365,7 @@ async function main() {
 			}
 
 		} else {
-			// Catch any action that isn't modification and doesn't use Gemini (shouldn't happen with current types)
+			// Catch any action that isn't modification and doesn't use Gemini
 			console.error(`[App] Internal Error: Action "${action}" was not handled by any processing flow.`);
 			process.exit(1);
 		}
