@@ -7,6 +7,7 @@ import { enhanceCodeWithGemini, GeminiEnhancementResult } from './gemini/gemini.
 import { EnhancementType, isValidEnhancementType } from './shared/types/enhancement.type.js';
 // Assuming you've done the refactor to filesystem:
 import { getConsolidatedSources, getTargetFiles } from './filesystem/filesystem.service.js';
+import { EXCLUDE_FILENAMES } from './filesystem/filesystem.config.js';
 
 // --- Interfaces ---
 
@@ -163,10 +164,10 @@ async function main() {
 			const filename = path.basename(targetPath);
 			// A more complete solution might load EXCLUDE_FILENAMES from config here
 			// For now, we assume it passed if it got here (basic check)
-			// if (EXCLUDE_FILENAMES.has(filename)) { // Example if config was loaded
-			//     console.log(`[App] Target file ${filename} is excluded by configuration.`);
-			//     return;
-			// }
+			if (EXCLUDE_FILENAMES.has(filename)) { // Example if config was loaded
+			    console.log(`[App] Target file ${filename} is excluded by configuration.`);
+			    return;
+			}
 			console.log(`[App] Target is a single file.`);
 			targetFiles.push(path.resolve(targetPath));
 		} else {
