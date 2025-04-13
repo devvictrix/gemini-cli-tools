@@ -10,10 +10,10 @@ import { hideBin } from 'yargs/helpers'; // Helper for parsing arguments correct
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from './gemini/gemini.service.js'; // Gemini interaction service
 import { EnhancementType } from './shared/types/enhancement.type.js'; // Enum defining possible actions
 // Import shared utilities and constants from their new locations
-import { getConsolidatedSources, getTargetFiles } from './shared/utils/filesystem.utils.js'; // High-level file finding/consolidation
 import { EXCLUDE_FILENAMES } from './shared/constants/filesystem.constants.js'; // Filesystem exclusion constants
 import { inferTypesFromData } from './shared/helpers/type-inference.helper.js'; // Local type inference logic
 import { readSingleFile, updateFileContent, writeOutputFile } from './shared/helpers/file-io.helper.js';
+import { getConsolidatedSources, getTargetFiles } from './shared/index.js';
 
 // --- Interfaces ---
 
