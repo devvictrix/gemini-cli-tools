@@ -1,4 +1,4 @@
-// src/shared/types/enhancement.type.ts
+// File: src/shared/types/enhancement.type.ts
 
 export enum EnhancementType {
 	AddComments = 'AddComments',
@@ -6,6 +6,9 @@ export enum EnhancementType {
 	Explain = 'Explain',
 	AddPathComment = 'AddPathComment',
 	Consolidate = 'Consolidate',
+	SuggestImprovements = 'SuggestImprovements', // New
+	GenerateDocs = 'GenerateDocs',             // New
+	InferFromData = 'InferFromData',           // New (based on provided code)
 	// Add more types here later
 }
 
