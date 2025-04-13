@@ -1,4 +1,4 @@
-// src/filesystem/utils/file.utils.ts
+// File: src/shared/utils/file.helpers.ts // New Path
 
 import { promises as fs } from "fs";
 import * as path from "path";
@@ -23,7 +23,8 @@ export async function getAllFiles(
 
             // Check against exclusion patterns/filenames early
             if (excludePatterns.has(file) || excludeFilenames.has(file)) {
-                console.log(`  [Inspector] Excluding: ${filePath} (matches pattern/filename)`);
+                // Keep logging consistent or make it more generic
+                // console.log(`  [FileUtil] Excluding: ${filePath} (matches pattern/filename)`);
                 continue;
             }
 
@@ -37,11 +38,11 @@ export async function getAllFiles(
                     results.push(filePath);
                 }
             } catch (statError) {
-                console.warn(`  [Inspector] Warning: Could not stat file/dir: ${filePath}. Skipping. Error: ${statError instanceof Error ? statError.message : statError}`);
+                console.warn(`  [FileUtil] Warning: Could not stat file/dir: ${filePath}. Skipping. Error: ${statError instanceof Error ? statError.message : statError}`);
             }
         }
     } catch (readdirError) {
-        console.error(`  [Inspector] Error reading directory: ${dir}. Error: ${readdirError instanceof Error ? readdirError.message : readdirError}`);
+        console.error(`  [FileUtil] Error reading directory: ${dir}. Error: ${readdirError instanceof Error ? readdirError.message : readdirError}`);
         // Decide if you want to throw or just return empty results for this branch
     }
     return results;
@@ -56,14 +57,15 @@ export async function getAllFiles(
  */
 export function filterLines(lines: string[], friendlyPath: string): string[] {
     let startIndex = 0;
+    const pathCommentRegex = /^\s*\/\/\s*File:\s*(.+)\s*$/; // Slightly simpler regex if needed
+
     // Find the first non-empty, non-marker line
     while (startIndex < lines.length) {
         const firstLine = lines[startIndex].trim();
         if (firstLine === "") {
-            // Skip blank lines
-            startIndex++;
-        } else if (firstLine.startsWith("//") && firstLine.includes(friendlyPath)) {
-            // Skip marker comment lines (allow one, skip subsequent ones implicitly)
+            startIndex++; // Skip blank lines
+        } else if (pathCommentRegex.test(firstLine) && firstLine.includes(friendlyPath)) {
+            // Skip marker comment lines for this specific file
             startIndex++;
         } else {
             break; // Stop when the first relevant line is found
@@ -72,18 +74,18 @@ export function filterLines(lines: string[], friendlyPath: string): string[] {
 
     const relevantLines = lines.slice(startIndex);
 
-    // Remove duplicate consecutive comment lines.
+    // Remove duplicate consecutive non-blank lines.
     const filteredLines: string[] = [];
-    let prevLineTrimmed = "UNIQUE_INITIAL_VALUE"; // Initialize with a unique value to ensure the first line is always added
+    let prevLineTrimmed: string | null = null; // Initialize differently
 
     for (const line of relevantLines) {
         const currentLineTrimmed = line.trim();
-        // Skip if current line is identical to the previous one (ignoring whitespace), but don't skip consecutive blank lines
-        if (currentLineTrimmed === prevLineTrimmed && currentLineTrimmed !== "") { 
+        // Skip if current line is identical to the previous one (ignoring whitespace), but ONLY if it's not blank
+        if (currentLineTrimmed !== "" && currentLineTrimmed === prevLineTrimmed) {
             continue;
         }
         filteredLines.push(line);
-        prevLineTrimmed = currentLineTrimmed;
+        prevLineTrimmed = currentLineTrimmed; // Update previous line
     }
     return filteredLines;
 }
