@@ -1,126 +1,38 @@
 // File: src/app.ts
+// Corrected yargs import and wrap call
 
 import * as fs from 'fs';
 import * as path from 'path';
-import pLimit from 'p-limit'; // Import p-limit for concurrency control
+import pLimit from 'p-limit';
+import yargs, { Argv } from 'yargs'; // Import Argv type directly
+import { hideBin } from 'yargs/helpers';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from './gemini/gemini.service.js';
 import { EnhancementType, isValidEnhancementType } from './shared/types/enhancement.type.js';
 import { getConsolidatedSources, getTargetFiles } from './filesystem/filesystem.service.js';
 import { EXCLUDE_FILENAMES } from './filesystem/filesystem.config.js';
-// Import the new local inference service
 import { inferTypesFromData } from './inference/local-type-inference.service.js';
 
-// --- Interfaces --- (Keep existing interfaces: ParsedArgs, FileProcessingResult)
-interface ParsedArgs {
-	action: EnhancementType;
+// --- Interfaces ---
+// Interface for yargs arguments
+interface AppArguments {
+	command: EnhancementType;
 	targetPath: string;
 	prefix?: string;
-	// Optional: Add interface name for InferFromData
 	interfaceName?: string;
+	[key: string]: unknown;
+	_: (string | number)[];
+	$0: string;
 }
+
+// Interface for parallel processing results
 interface FileProcessingResult {
 	filePath: string;
-	status: 'updated' | 'unchanged' | 'error' | 'processed'; // Add 'processed' for non-modification
+	status: 'updated' | 'unchanged' | 'error' | 'processed';
 	message?: string;
 }
 
 
-// --- Function Definitions ---
-
-/**
- * Parses command line arguments.
- * Expects: <ActionType> <TargetPath> [PrefixOrOption] [OptionValue]
- * Example for InferFromData: InferFromData data.json MyInterface
- * @returns A ParsedArgs object containing the validated arguments. Exits if validation fails.
- */
-function parseArguments(): ParsedArgs {
-	const args = process.argv.slice(2);
-	const actionString = args[0];
-	const targetPath = args[1];
-	let prefix: string | undefined = undefined;
-	let interfaceName: string | undefined = undefined;
-
-	// Basic validation
-	if (!actionString) {
-		console.error("\n❌ Error: Action type is required.");
-		printUsage();
-		process.exit(1);
-	}
-	if (!isValidEnhancementType(actionString)) {
-		console.error(`\n❌ Error: Invalid action type "${actionString}".`);
-		console.log("Available Action Types:", Object.values(EnhancementType).join(', '));
-		process.exit(1);
-	}
-	const action = actionString as EnhancementType;
-
-	if (!targetPath) {
-		console.error("\n❌ Error: Target path (file or directory) is required.");
-		printUsage();
-		process.exit(1);
-	}
-
-	// Handle optional arguments differently based on action
-	if (action === EnhancementType.InferFromData) {
-		// InferFromData expects <Action> <TargetPath> <InterfaceName>
-		interfaceName = args[2];
-		if (!interfaceName) {
-			console.error(`\n❌ Error: Interface name is required for the '${EnhancementType.InferFromData}' action.`);
-			printUsage();
-			process.exit(1);
-		}
-		// Validate interface name (basic)
-		if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(interfaceName)) {
-			console.error(`\n❌ Error: Invalid interface name "${interfaceName}". Must be a valid JavaScript/TypeScript identifier.`);
-			process.exit(1);
-		}
-
-	} else {
-		// Other actions expect <Action> <TargetPath> [Prefix]
-		prefix = args[2]; // Can be undefined, which is fine
-	}
-
-
-	// Validate Target Path Access
-	try {
-		fs.accessSync(targetPath);
-	} catch (e) {
-		console.error(`\n❌ Error: Cannot access target path: ${targetPath}. Please ensure it exists.`);
-		process.exit(1);
-	}
-
-	// Validate InferFromData target is a file
-	if (action === EnhancementType.InferFromData) {
-		try {
-			const stats = fs.statSync(targetPath);
-			if (!stats.isFile()) {
-				console.error(`\n❌ Error: Target path for '${EnhancementType.InferFromData}' must be a file (e.g., JSON).`);
-				process.exit(1);
-			}
-		} catch (e) {
-			// accessSync already checked existence, this covers stat errors
-			console.error(`\n❌ Error: Could not get file stats for target path: ${targetPath}.`);
-			process.exit(1);
-		}
-	}
-
-
-	return { action, targetPath, prefix, interfaceName };
-}
-
-/** Prints usage instructions */
-function printUsage() {
-	console.log("\nUsage:");
-	console.log("  npm start <ActionType> <TargetPath> [Options...]");
-	console.log("\nExamples:");
-	console.log("  npm start AddComments src/myFile.ts");
-	console.log("  npm start Analyze ./src");
-	console.log("  npm start SuggestImprovements ./src/utils");
-	console.log("  npm start GenerateDocs ./src/services/userService.ts");
-	console.log("  npm start AddPathComment ./src");
-	console.log("  npm start Consolidate ./dist"); // Example only, be careful with dist
-	console.log("  npm start InferFromData ./data/users.json UserProfile"); // New Example
-	console.log("\nAvailable Action Types:", Object.values(EnhancementType).join(', '));
-}
+// --- Utility Functions ---
 
 /**
  * Reads the content of a single code file synchronously.
@@ -130,7 +42,6 @@ function printUsage() {
  */
 function readSingleCodeFile(filePath: string): string {
 	const relativeFilePath = path.relative(process.cwd(), filePath).split(path.sep).join('/');
-	// console.log(`[App] Reading file: ${relativeFilePath}`); // Reduce noise maybe?
 	try {
 		const stats = fs.statSync(filePath);
 		if (!stats.isFile()) {
@@ -140,7 +51,7 @@ function readSingleCodeFile(filePath: string): string {
 		return code;
 	} catch (readError) {
 		console.error(`[App] ❌ Error reading file ${relativeFilePath}: ${readError instanceof Error ? readError.message : readError}`);
-		throw readError; // Re-throw to be caught by the calling function
+		throw readError;
 	}
 }
 
@@ -173,7 +84,6 @@ function writeOutputFile(outputFilePath: string, content: string): boolean {
 	const relativeOutputPath = path.relative(process.cwd(), outputFilePath).split(path.sep).join('/');
 	console.log(`[App] Writing output to ${relativeOutputPath}...`);
 	try {
-		// Ensure directory exists (optional, but good practice)
 		const outputDir = path.dirname(outputFilePath);
 		if (!fs.existsSync(outputDir)) {
 			fs.mkdirSync(outputDir, { recursive: true });
@@ -188,48 +98,62 @@ function writeOutputFile(outputFilePath: string, content: string): boolean {
 	}
 }
 
-
 // --- Main Execution Logic ---
-async function main() {
-	const { action, targetPath, prefix, interfaceName } = parseArguments(); // Get interfaceName
+
+/**
+ * The main application logic, now accepts parsed arguments from yargs.
+ * @param argv The parsed arguments object from yargs.
+ */
+async function runMainLogic(argv: AppArguments) {
+	const { command: action, targetPath, prefix, interfaceName } = argv;
 	console.log(`\nSelected action: ${action} on target: ${targetPath}${prefix ? ` with prefix: ${prefix}` : ''}${interfaceName ? ` (Interface: ${interfaceName})` : ''}`);
 
+	// --- Validate Target Path Access and Type ---
+	let stats: fs.Stats;
+	try {
+		stats = fs.statSync(targetPath);
+	} catch (e) {
+		console.error(`\n❌ Error: Cannot access target path: ${targetPath}. Please ensure it exists.`);
+		process.exit(1);
+	}
+	if (action === EnhancementType.InferFromData && !stats.isFile()) {
+		console.error(`\n❌ Error: Target path for '${EnhancementType.InferFromData}' must be a file (e.g., JSON).`);
+		process.exit(1);
+	}
+
+	// Determine action categories
 	const isModificationAction = [
 		EnhancementType.AddComments,
 		EnhancementType.AddPathComment,
-		// Add future modification actions (Refactor, GenerateTests) here
 	].includes(action);
 
 	const usesGeminiApi = [
-		EnhancementType.AddComments, // Note: Also a modification action
+		EnhancementType.AddComments,
 		EnhancementType.Analyze,
 		EnhancementType.Explain,
-		EnhancementType.SuggestImprovements, // New
-		EnhancementType.GenerateDocs,      // New
+		EnhancementType.SuggestImprovements,
+		EnhancementType.GenerateDocs,
 	].includes(action);
 
-	// Actions that perform local processing without Gemini or typical source modification
 	const isLocalProcessingAction = [
 		EnhancementType.Consolidate,
-		EnhancementType.InferFromData, // New
-		EnhancementType.AddPathComment, // Note: Also a modification action
+		EnhancementType.InferFromData,
+		EnhancementType.AddPathComment,
 	].includes(action);
 
 
 	try {
-		const stats = fs.statSync(targetPath);
 		let targetFiles: string[] = [];
 
-		// --- Identify target files (adjust for InferFromData) ---
+		// --- Identify target files ---
 		if (action === EnhancementType.InferFromData) {
-			// Already validated that targetPath is a file in parseArguments
 			targetFiles.push(path.resolve(targetPath));
 			console.log(`[App] Target for '${action}' is the single file: ${targetPath}`);
 		} else if (stats.isDirectory()) {
 			console.log(`[App] Target is a directory. Finding relevant files...`);
-			targetFiles = await getTargetFiles(targetPath, prefix); // Use filesystem service
+			targetFiles = await getTargetFiles(targetPath, prefix);
 			if (targetFiles.length === 0) {
-				console.log("\n[App] No relevant files found matching criteria or remaining after exclusions. Exiting.");
+				console.log("\n[App] No relevant files found matching criteria. Exiting.");
 				return;
 			}
 			console.log(`[App] Found ${targetFiles.length} files to process for action '${action}'.`);
@@ -241,46 +165,36 @@ async function main() {
 			}
 			console.log(`[App] Target is a single file for action '${action}'.`);
 			targetFiles.push(path.resolve(targetPath));
-		} else {
-			// Should not happen due to parseArguments check, but good safety net
-			console.error(`\n❌ Error: Target path ${targetPath} is neither a file nor a directory.`);
-			process.exit(1);
 		}
 
 		// --- Process based on action type ---
 
 		if (isModificationAction && action !== EnhancementType.AddPathComment) {
 			// --- PARALLEL MODIFICATION FLOW (AddComments) ---
-			// NOTE: AddPathComment is handled separately below due to simpler logic
-			const concurrencyLimit = 5; // Reduce concurrency slightly for API calls
+			const concurrencyLimit = 5;
 			const limit = pLimit(concurrencyLimit);
 			console.log(`\n[App] Starting PARALLEL modification action '${action}' on ${targetFiles.length} file(s) with concurrency ${concurrencyLimit}...`);
 
 			let fileProcessor: (absoluteFilePath: string) => Promise<FileProcessingResult>;
 
-			// --- Processor for AddComments (Uses Gemini) ---
 			if (action === EnhancementType.AddComments) {
 				fileProcessor = async (absoluteFilePath): Promise<FileProcessingResult> => {
 					const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
-					// console.log(` -> Processing (Gemini AddComments): ${relativeFilePath}`);
 					try {
 						const originalCode = readSingleCodeFile(absoluteFilePath);
 						const result: GeminiEnhancementResult = await enhanceCodeWithGemini(action, originalCode);
 
-						if (result.type === 'code' && result.content !== null) { // Check content not null
+						if (result.type === 'code' && result.content !== null) {
 							if (originalCode.trim() !== result.content.trim()) {
-								// console.log(`    ✨ Changes detected for ${relativeFilePath}.`);
 								const updated = updateCodeFile(absoluteFilePath, result.content);
 								return { filePath: relativeFilePath, status: updated ? 'updated' : 'error', message: updated ? undefined : 'File write failed' };
 							} else {
-								// console.log(`    ✅ No changes needed for ${relativeFilePath}.`);
 								return { filePath: relativeFilePath, status: 'unchanged' };
 							}
 						} else if (result.type === 'error') {
 							console.error(`    ❌ Gemini failed for ${relativeFilePath}: ${result.content}`);
 							return { filePath: relativeFilePath, status: 'error', message: `Gemini Error: ${result.content}` };
 						} else {
-							// This case should ideally not happen if Gemini service returns code or error correctly
 							console.warn(`    ⚠️ Received unexpected result type '${result.type}' or null content (expected 'code') for ${relativeFilePath}.`);
 							return { filePath: relativeFilePath, status: 'error', message: `Unexpected result type/content: ${result.type}` };
 						}
@@ -290,20 +204,13 @@ async function main() {
 					}
 				};
 			} else {
-				// Placeholder for future parallel modification actions (e.g., Refactor)
-				console.error(`[App] Internal Error: Unhandled parallel modification action type "${action}" in processor selection.`);
-				fileProcessor = async (absoluteFilePath) => ({
-					filePath: path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/'),
-					status: 'error',
-					message: `Unhandled parallel modification action: ${action}`
-				});
+				console.error(`[App] Internal Error: Unhandled parallel modification action type "${action}"`);
+				fileProcessor = async (fp) => ({ filePath: path.relative(process.cwd(), fp).split(path.sep).join('/'), status: 'error', message: `Unhandled parallel mod action: ${action}` });
 			}
 
-			// --- Run Parallel Tasks ---
 			const tasks = targetFiles.map(filePath => limit(() => fileProcessor(filePath)));
 			const results: FileProcessingResult[] = await Promise.all(tasks);
 
-			// --- Aggregate and Print Summary ---
 			let successCount = 0;
 			let unchangedCount = 0;
 			let errorCount = 0;
@@ -311,7 +218,7 @@ async function main() {
 				switch (res.status) {
 					case 'updated': successCount++; break;
 					case 'unchanged': unchangedCount++; break;
-					case 'error': errorCount++; break; // Don't log message here, already logged by processor
+					case 'error': errorCount++; break;
 				}
 			});
 			console.log("\n--- Parallel Modification Summary ---");
@@ -325,72 +232,66 @@ async function main() {
 
 
 		} else if (usesGeminiApi && !isModificationAction) {
-			// --- NON-MODIFICATION FLOW using GEMINI (Analyze, Explain, SuggestImprovements, GenerateDocs) ---
+			// --- NON-MODIFICATION FLOW using GEMINI ---
 			let codeToProcess: string;
 			const geminiRequestType = action;
 
-			// Consolidate if directory, read single if file
-			if (targetFiles.length > 1 || (targetFiles.length === 1 && fs.statSync(targetPath).isDirectory())) {
+			if (stats.isDirectory() || targetFiles.length > 1) {
 				console.log(`\n[App] Consolidating ${targetFiles.length} file(s) for Gemini action '${action}'...`);
-				const consolidationRoot = targetPath; // Root is the initially provided directory path
+				const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetFiles[0]);
 				codeToProcess = await getConsolidatedSources(consolidationRoot, prefix);
-			} else if (targetFiles.length === 1) { // Single file case
+			} else if (targetFiles.length === 1) {
 				console.log(`\n[App] Reading single file for Gemini action '${action}'...`);
 				codeToProcess = readSingleCodeFile(targetFiles[0]);
 			} else {
 				console.error(`[App] Internal Error: No target files identified for Gemini action '${action}'.`);
-				process.exit(1);
+				process.exitCode = 1;
+				return;
 			}
 
 			if (codeToProcess.trim() === '') {
 				console.warn(`[App] Warning: Content to send to Gemini for action '${action}' is empty. Skipping API call.`);
-				return; // Exit gracefully if nothing to process
+				return;
 			}
 
-
-			// Call Gemini service
 			console.log(`\n[App] Invoking Gemini service for action: ${geminiRequestType}...`);
 			const result: GeminiEnhancementResult = await enhanceCodeWithGemini(geminiRequestType, codeToProcess);
 
-			// Process and display the textual result
 			if (result.type === 'text' && result.content !== null) {
 				console.log(`\n--- Gemini ${geminiRequestType} Result ---`);
-				console.log(result.content); // Print the text content directly
+				console.log(result.content);
 				console.log(`--- End ${geminiRequestType} Result ---\n`);
 			} else if (result.type === 'error') {
 				console.error(`\n[App] ❌ Gemini service failed: ${result.content ?? 'No specific error message provided.'}`);
 				process.exitCode = 1;
 			} else {
-				// This might happen if Gemini returns code unexpectedly for an analysis action
 				console.warn(`[App] ⚠️ Received unexpected result type '${result.type}' or null content (expected 'text') for ${geminiRequestType} action.`);
 				if (result.content) {
 					console.log("--- Unexpected Content Received ---");
 					console.log(result.content.substring(0, 500) + (result.content.length > 500 ? '...' : ''));
 					console.log("----------------------------------");
 				}
-				process.exitCode = 1; // Treat as error
+				process.exitCode = 1;
 			}
 
 		} else if (isLocalProcessingAction) {
-			// --- LOCAL PROCESSING FLOW (Consolidate, InferFromData, AddPathComment) ---
+			// --- LOCAL PROCESSING FLOW ---
 			console.log(`\n[App] Starting local action '${action}'...`);
 
 			if (action === EnhancementType.Consolidate) {
-				// --- CONSOLIDATE ---
 				console.log(`[App] Consolidating ${targetFiles.length} file(s)...`);
 				const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetPath);
 				console.log(`[App] Consolidating from root: ${consolidationRoot} ${prefix ? `with prefix '${prefix}'` : ''}...`);
 				const consolidatedContent = await getConsolidatedSources(consolidationRoot, prefix);
-				const outputFileName = 'consolidated_output.txt'; // Consider making configurable
+				const outputFileName = 'consolidated_output.txt';
 				const outputFilePath = path.resolve(process.cwd(), outputFileName);
 				const success = writeOutputFile(outputFilePath, consolidatedContent);
 				if (!success) process.exitCode = 1;
-				else console.log(`\n➡️ You can now copy the content from: ${outputFileName}`);
+				else console.log(`\n➡️ You can now find consolidated content in: ${outputFileName}`);
 
 			} else if (action === EnhancementType.InferFromData) {
-				// --- INFER FROM DATA ---
-				if (targetFiles.length !== 1 || !interfaceName) {
-					console.error("[App] Internal Error: Incorrect state for InferFromData (expected 1 file and interfaceName).");
+				if (!interfaceName) {
+					console.error("[App] Internal Error: Interface name missing for InferFromData.");
 					process.exit(1);
 				}
 				const dataFilePath = targetFiles[0];
@@ -400,101 +301,67 @@ async function main() {
 					const fileContent = readSingleCodeFile(dataFilePath);
 					let data: any;
 					try {
-						data = JSON.parse(fileContent); // Assume JSON for now
+						data = JSON.parse(fileContent);
 					} catch (parseError) {
 						console.error(`[App] ❌ Error parsing JSON data from ${relativeDataFilePath}: ${parseError instanceof Error ? parseError.message : parseError}`);
 						process.exit(1);
 					}
-
-					// Perform inference
 					const inferredInterface = inferTypesFromData(interfaceName, data);
-
-					// Output the result
 					console.log(`\n--- Inferred Interface: ${interfaceName} ---`);
 					console.log(inferredInterface);
 					console.log(`--- End Interface ---`);
-
-					// Optional: Write to a .d.ts file?
-					// const outputInterfaceFileName = `${interfaceName}.d.ts`;
-					// const outputInterfacePath = path.resolve(path.dirname(dataFilePath), outputInterfaceFileName);
-					// writeOutputFile(outputInterfacePath, inferredInterface);
-
 				} catch (inferenceError) {
 					console.error(`[App] ❌ Error during type inference for ${relativeDataFilePath}: ${inferenceError instanceof Error ? inferenceError.message : inferenceError}`);
 					process.exit(1);
 				}
 			} else if (action === EnhancementType.AddPathComment) {
-				// --- ADD PATH COMMENT (Now handled here sequentially for simplicity) ---
 				console.log(`\n[App] Starting SEQUENTIAL action '${action}' on ${targetFiles.length} file(s)...`);
 				let updatedCount = 0;
 				let unchangedCount = 0;
 				let errorCount = 0;
 
+				const pathCommentRegex = /^\s*\/\/\s*File:\s*(.+?)\.(ts|js|json|env)\s*$/;
+
 				for (const absoluteFilePath of targetFiles) {
 					const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
-					// console.log(` -> Processing (AddPath): ${relativeFilePath}`); // Can be noisy
 					try {
 						const pathComment = `// File: ${relativeFilePath}`;
 						const originalCode = readSingleCodeFile(absoluteFilePath);
 						const lines = originalCode.split(/\r?\n/);
 
-						const pathCommentRegex = /^\s*\/\/\s*File:\s*[\w\-\/\\.]+\.(ts|js|json|env)\s*$/; // Updated regex
 						let existingCommentIndex = -1;
-						let firstCodeLineIndex = -1;
 						let foundOurComment = false;
 						let foundDifferentComment = false;
 
-						// Find first line with code/non-path comment and check for existing path comments
 						for (let i = 0; i < lines.length; i++) {
 							const lineTrimmed = lines[i].trim();
-							if (lineTrimmed === '') continue; // Skip blank lines
+							if (lineTrimmed === '') continue;
 
 							const isPathComment = pathCommentRegex.test(lineTrimmed);
-
 							if (isPathComment) {
 								if (lineTrimmed === pathComment) {
 									foundOurComment = true;
-									existingCommentIndex = i; // Record index if it's our exact comment
+									existingCommentIndex = i;
+									if (i === 0) break;
 								} else {
 									foundDifferentComment = true;
+									if (i === 0) break;
 								}
-								// Continue checking in case our comment is later
 							} else {
-								// This is the first line that isn't blank or *any* path comment
-								if (firstCodeLineIndex === -1) {
-									firstCodeLineIndex = i;
-								}
-								// If we found our comment *before* this line, break early? No, might be multiple comments.
-								// Let's just record the first code line.
+								break;
 							}
 						}
-						if (firstCodeLineIndex === -1) firstCodeLineIndex = lines.length; // Handle files with only comments/blanks
 
-
-						// Determine if update is needed
 						let needsUpdate = true;
 						if (foundOurComment && existingCommentIndex === 0) {
-							// Our comment is the very first line
-							// Check if the next line is blank (or end of file)
 							if (lines.length === 1 || (lines.length > 1 && lines[1].trim() === '')) {
-								// console.log(`    ✅ Path comment exists correctly at line 0 in ${relativeFilePath}.`);
 								needsUpdate = false;
-							} else {
-								// console.log(`    ⚠️ Path comment at line 0, but no blank line after in ${relativeFilePath}. Will reformat.`);
 							}
-						} else if (foundOurComment) {
-							// console.log(`    ⚠️ Path comment exists but not at line 0 in ${relativeFilePath}. Will move and reformat.`);
-						} else if (foundDifferentComment) {
-							// console.log(`    ⚠️ Different path comment found in ${relativeFilePath}. Will replace/add ours.`);
-						} else {
-							// console.log(`    ➕ Path comment missing in ${relativeFilePath}. Will add.`);
 						}
-
 
 						if (!needsUpdate) {
 							unchangedCount++;
 						} else {
-							// --- Modification logic: Remove all top path comments/blanks, add new ---
 							let tempLines = originalCode.split(/\r?\n/);
 							let firstRealCodeIdx = 0;
 							while (firstRealCodeIdx < tempLines.length) {
@@ -505,22 +372,18 @@ async function main() {
 									break;
 								}
 							}
-
 							const codeWithoutHeader = tempLines.slice(firstRealCodeIdx).join('\n');
-							const newCode = `${pathComment}\n\n${codeWithoutHeader}`; // Ensure blank line
+							const newCode = `${pathComment}\n\n${codeWithoutHeader}`;
 
-							// console.log(`    🔧 Adding/Updating path comment for ${relativeFilePath}.`);
 							const updated = updateCodeFile(absoluteFilePath, newCode);
 							if (updated) updatedCount++; else errorCount++;
 						}
-
 					} catch (fileProcessingError) {
 						console.error(`    ❌ Error during AddPathComment for ${relativeFilePath}: ${fileProcessingError instanceof Error ? fileProcessingError.message : fileProcessingError}`);
 						errorCount++;
 					}
-				} // End loop over files
+				}
 
-				// --- AddPathComment Summary ---
 				console.log("\n--- Sequential Action Summary ---");
 				console.log(`  Action:              ${action}`);
 				console.log(`  Total Files Target:  ${targetFiles.length}`);
@@ -530,18 +393,15 @@ async function main() {
 				console.log("---------------------------------");
 				if (errorCount > 0) process.exitCode = 1;
 			}
-
 		} else {
-			// Catch-all for unhandled actions
-			console.error(`[App] Internal Error: Action "${action}" was not handled by any processing flow.`);
+			console.error(`[App] Internal Error: Action "${action}" was not handled.`);
 			process.exit(1);
 		}
 
-	} catch (error) { // Catch errors from initial setup, file access, etc.
+	} catch (error) {
 		console.error("\n❌ An error occurred during script execution:");
 		if (error instanceof Error) {
 			console.error(`   Message: ${error.message}`);
-			// console.error(error.stack); // Uncomment for stack trace
 		} else {
 			console.error("   Unknown error object:", error);
 		}
@@ -549,16 +409,113 @@ async function main() {
 	}
 
 	console.log("\nScript execution finished.");
-} // end main
+}
 
-// --- Global Error Catching & Script Execution ---
-main().catch(error => {
-	console.error("\n🚨 An unexpected critical error occurred outside the main try/catch block:");
-	if (error instanceof Error) {
-		console.error(`   Message: ${error.message}`);
-		console.error(error.stack); // Log stack for critical failures
-	} else {
-		console.error("   An unknown error object was thrown:", error);
-	}
-	process.exit(1);
-});
+// --- Argument Parsing and Execution ---
+
+// Helper function to set up common options for most commands
+// Use the imported Argv type here
+const setupDefaultCommand = (yargsInstance: Argv<{}>): Argv<{ targetPath: string; prefix: string | undefined }> => {
+	return yargsInstance
+		.positional('targetPath', {
+			describe: 'Target file or directory path',
+			type: 'string',
+			demandOption: true,
+		})
+		.option('prefix', {
+			alias: 'p',
+			type: 'string',
+			description: 'Optional filename prefix filter for directory processing',
+			demandOption: false,
+		});
+};
+
+// Use yargs to parse arguments and run the main logic
+yargs(hideBin(process.argv))
+	.command(
+		`${EnhancementType.AddComments} <targetPath>`,
+		'Add AI-generated comments to files in target path.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.AddComments } as AppArguments)
+	)
+	.command(
+		`${EnhancementType.Analyze} <targetPath>`,
+		'Analyze code structure and quality.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.Analyze } as AppArguments)
+	)
+	.command(
+		`${EnhancementType.Explain} <targetPath>`,
+		'Explain what the code does.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.Explain } as AppArguments)
+	)
+	.command(
+		`${EnhancementType.AddPathComment} <targetPath>`,
+		'Add // File: comment to top of files.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.AddPathComment } as AppArguments)
+	)
+	.command(
+		`${EnhancementType.Consolidate} <targetPath>`,
+		'Consolidate code into a single output file.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.Consolidate } as AppArguments)
+	)
+	.command(
+		`${EnhancementType.SuggestImprovements} <targetPath>`,
+		'Suggest improvements for the code.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.SuggestImprovements } as AppArguments)
+	)
+	.command(
+		`${EnhancementType.GenerateDocs} <targetPath>`,
+		'Generate Markdown documentation for the code.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.GenerateDocs } as AppArguments)
+	)
+	.command(
+		`${EnhancementType.InferFromData} <targetPath>`,
+		'Infer TypeScript interface from data file (JSON).',
+		(yargsInstance) => { // Explicit type for builder function instance
+			return yargsInstance
+				.positional('targetPath', {
+					describe: 'Path to the data file (e.g., data.json)',
+					type: 'string',
+					demandOption: true,
+				})
+				.option('interfaceName', {
+					alias: 'i',
+					type: 'string',
+					description: 'Name for the generated TypeScript interface',
+					demandOption: true,
+				});
+		},
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.InferFromData } as AppArguments)
+	)
+	.demandCommand(1, 'Please specify a valid command (action).')
+	.strict()
+	.help()
+	.alias('h', 'help')
+	.wrap(null) // Let yargs determine terminal width automatically
+	.fail((msg, err, yargs) => {
+		if (err) {
+			console.error("\n🚨 An unexpected error occurred during argument parsing:");
+			console.error(err);
+			process.exit(1);
+		}
+		console.error(`\n❌ Error: ${msg}\n`);
+		yargs.showHelp();
+		process.exit(1);
+	})
+	.parseAsync()
+	.catch(error => {
+		console.error("\n🚨 An unexpected critical error occurred during execution:");
+		if (error instanceof Error) {
+			console.error(`   Message: ${error.message}`);
+			console.error(error.stack);
+		} else {
+			console.error("   An unknown error object was thrown:", error);
+		}
+		process.exit(1);
+	});

@@ -6,6 +6,10 @@
  *
  * @param {any} value - The value whose type is to be determined.
  * @returns {string} - A string representing the TypeScript type of the given value.
+ * @warning The detection of date strings using regex is a heuristic and may misclassify
+ *          strings that coincidentally match the ISO 8601 format.
+ * @warning This function does not handle circular references in objects. Processing data
+ *          with circular references will likely result in a 'Maximum call stack size exceeded' error.
  */
 function getType(value: any): string {
     if (value === null) {
@@ -27,7 +31,7 @@ function getType(value: any): string {
     } else if (value instanceof Date) {
         return "Date";
     } else if (typeof value === "string") {
-        // Basic check for ISO 8601 Date string format
+        // Basic check for ISO 8601 Date string format (heuristic)
         // Note: This is a simple heuristic and might misclassify strings that coincidentally match
         if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(value)) {
             return "Date"; // Suggest Date if it looks like an ISO string
@@ -35,6 +39,7 @@ function getType(value: any): string {
         return "string";
     } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
         // Ensure it's a plain object, not null or an array
+        // Potential stack overflow here if obj has circular references
         return getInterface(value);
     }
     // Fallback for primitive types like number, boolean, bigint, symbol
@@ -47,11 +52,13 @@ function getType(value: any): string {
  *
  * @param {object} obj - The object to convert into a TypeScript interface string.
  * @returns {string} - A formatted string representing the TypeScript type interface of the object.
+ * @warning This function does not handle circular references. If 'obj' contains circular
+ *          references, this may lead to infinite recursion and stack overflow.
  */
 function getInterface(obj: object): string {
     const properties = Object.entries(obj).map(
         // Recursively get type for each property value
-        ([key, val]) => `  ${key}: ${getType(val)};` // Indent properties
+        ([key, val]) => `  ${key}: ${getType(val)};` // Indent properties // Recursive call
     );
     // Sort properties alphabetically for consistent output
     properties.sort();
@@ -65,8 +72,13 @@ function getInterface(obj: object): string {
  *
  * @param {string} interfaceName - The desired name for the root TypeScript interface.
  * @param {any} data - The sample data (object or array of objects) to analyze.
+ *                     It's assumed this data is JSON-like (no functions, Maps, Sets, etc. handled specifically).
  * @returns {string} - A formatted string representing the generated TypeScript interface.
- * @throws {Error} If the input data is not an object or an array of objects.
+ * @throws {Error} If the input data is not a single object or an array of objects.
+ * @note This service is primarily designed for JSON data. Support for other formats like YAML
+ *       would require adding specific parsers.
+ * @warning Does not handle circular references within the data structure.
+ * @warning Date string detection is based on a simple regex heuristic.
  */
 export function inferTypesFromData(interfaceName: string, data: any): string {
     // Validate input data structure
