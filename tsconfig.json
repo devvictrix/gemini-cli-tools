@@ -1,7 +1,5 @@
 // File: tsconfig.json
 
-// tsconfig.json
-
 {
   "compilerOptions": {
     "module": "NodeNext", // Specify ESM output compatible with Node.js

@@ -301,58 +301,85 @@ async function runMainLogic(argv: AppArguments) {
 				console.log(`\n[App] Starting SEQUENTIAL action '${action}' on ${targetFiles.length} file(s)...`);
 				let updatedCount = 0;
 				let unchangedCount = 0;
+				let skippedCount = 0; // Counter for skipped files (JSON, ENV, etc.)
 				let errorCount = 0;
 
-				// Regex to detect existing "File: ..." comments, capturing path and extension
-				const pathCommentRegex = /^\s*\/\/\s*File:\s*(.+?\.(?:ts|js|json|env))\s*$/;
+				// Define file extensions that don't support '//' comments
+				const nonCommentableExtensions = new Set(['.json', '.env']);
+				// Regex to detect *any* leading comment line (JS/TS/Shell style) for removal during update
+				// Note: This is a simple check, might need refinement for complex block comments /* */
+				const anyCommentRegex = /^\s*(\/\/.*|#.*)/;
+				// Specific regex for *our* path comment format remains the same for precise checks
+				const pathCommentRegex = /^\s*\/\/\s*File:\s*(.+?\.(?:ts|js|json|env))\s*$/; // Keep for parsing if needed, but direct comparison is safer
 
 				// Process files one by one sequentially
 				for (const absoluteFilePath of targetFiles) {
 					const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
+					const fileExtension = path.extname(absoluteFilePath).toLowerCase();
+
+					// --- Step 1: Skip non-commentable files ---
+					if (nonCommentableExtensions.has(fileExtension)) {
+						console.log(`    [App] ⏩ Skipping non-commentable file type: ${relativeFilePath}`);
+						skippedCount++;
+						continue; // Move to the next file
+					}
+
 					try {
 						const pathComment = `// File: ${relativeFilePath}`; // The desired comment header
 						const originalCode = readSingleFile(absoluteFilePath); // Use imported utility
 						const lines = originalCode.split(/\r?\n/); // Split into lines
 
-						let firstRealCodeIdx = 0;
-						let foundOurCommentAtTop = false;
-
-						// Find the index of the first line that isn't blank or a path comment
-						while (firstRealCodeIdx < lines.length) {
-							const lineTrim = lines[firstRealCodeIdx].trim();
-							if (lineTrim === '') { // Skip blank lines
-								firstRealCodeIdx++;
-							} else if (pathCommentRegex.test(lineTrim)) { // Check if it's any path comment
-								if (lineTrim === pathComment && firstRealCodeIdx === 0) {
-									// Check if it's *our* comment and at the very top
-									foundOurCommentAtTop = true;
-								}
-								firstRealCodeIdx++; // Skip any path comment line
-							} else {
-								break; // Found the first non-blank, non-path-comment line
+						// --- Step 2: Check if file is already correctly formatted ---
+						let firstNonBlankLineIndex = -1;
+						let firstNonBlankLine = '';
+						for (let i = 0; i < lines.length; i++) {
+							const trimmedLine = lines[i].trim();
+							if (trimmedLine !== '') {
+								firstNonBlankLineIndex = i;
+								firstNonBlankLine = trimmedLine;
+								break;
 							}
 						}
 
-						// Determine if an update is needed
-						// Update if:
-						// 1. Our comment wasn't found at the top.
-						// 2. Our comment was found at the top, BUT there's no blank line immediately after it (and it's not the only line).
-						let needsUpdate = !foundOurCommentAtTop ||
-							(foundOurCommentAtTop && lines.length > 1 && lines[1].trim() !== '');
-
-
-						if (!needsUpdate) {
-							unchangedCount++;
-							console.log(`    [App] ✅ No update needed for ${relativeFilePath}`);
-						} else {
-							console.log(`    [App] 🔄 Updating header for ${relativeFilePath}...`);
-							// Reconstruct the code: Our comment, blank line, then code starting from firstRealCodeIdx
-							const codeWithoutHeader = lines.slice(firstRealCodeIdx).join('\n');
-							const newCode = `${pathComment}\n\n${codeWithoutHeader}`;
-
-							const updated = updateFileContent(absoluteFilePath, newCode); // Use imported utility
-							if (updated) updatedCount++; else errorCount++;
+						let alreadyCorrect = false;
+						if (firstNonBlankLineIndex === 0 && firstNonBlankLine === pathComment) {
+							// Found the correct comment on the very first line.
+							// Now check if the next line is blank or doesn't exist.
+							if (lines.length === 1 || (lines.length > 1 && lines[1].trim() === '')) {
+								alreadyCorrect = true;
+							}
 						}
+
+						if (alreadyCorrect) {
+							console.log(`    [App] ✅ No update needed for ${relativeFilePath} (Correct header found)`);
+							unchangedCount++;
+							continue; // Move to the next file
+						}
+
+						// --- Step 3: Prepare for Update (File needs changes) ---
+						console.log(`    [App] 🔄 Updating header for ${relativeFilePath}...`);
+
+						// Find the index of the first line of *actual code*
+						// (Skipping all initial blank lines AND all initial comment lines)
+						let firstCodeLineIndex = 0;
+						while (firstCodeLineIndex < lines.length) {
+							const lineTrim = lines[firstCodeLineIndex].trim();
+							if (lineTrim === '' || anyCommentRegex.test(lineTrim)) {
+								firstCodeLineIndex++;
+							} else {
+								break; // Found the first non-blank, non-comment line
+							}
+						}
+
+						// Reconstruct the code: Our comment, blank line, then code starting from firstCodeLineIndex
+						const codeContentLines = lines.slice(firstCodeLineIndex);
+						// Handle case where the file only contained comments/whitespace
+						const codeContent = codeContentLines.length > 0 ? codeContentLines.join('\n') : '';
+						const newCode = `${pathComment}\n\n${codeContent}`;
+
+						const updated = updateFileContent(absoluteFilePath, newCode); // Use imported utility
+						if (updated) updatedCount++; else errorCount++;
+
 					} catch (fileProcessingError) {
 						console.error(`    [App] ❌ Error during AddPathComment for ${relativeFilePath}: ${fileProcessingError instanceof Error ? fileProcessingError.message : fileProcessingError}`);
 						errorCount++;
@@ -365,6 +392,7 @@ async function runMainLogic(argv: AppArguments) {
 				console.log(`  Total Files Targeted:  ${targetFiles.length}`);
 				console.log(`  Successfully Updated:  ${updatedCount}`);
 				console.log(`  No Changes Needed:   ${unchangedCount}`);
+				console.log(`  Skipped (Non-Comment): ${skippedCount}`); // Added skipped count
 				console.log(`  Errors Encountered:    ${errorCount}`);
 				console.log("---------------------------------");
 				if (errorCount > 0) process.exitCode = 1; // Indicate failure if errors occurred
