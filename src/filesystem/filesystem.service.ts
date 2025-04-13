@@ -3,7 +3,7 @@
 import { promises as fs } from "fs";
 import * as path from "path";
 import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from './filesystem.config.js';
-import { getAllFiles, filterLines } from './utils/file.utils.js';
+import { getAllFiles, filterLines } from './file.util.js';
 
 /**
  * Finds all relevant source files within a directory based on config.

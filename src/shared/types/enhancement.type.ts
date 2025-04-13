@@ -6,13 +6,12 @@ export enum EnhancementType {
 	Explain = 'Explain',
 	AddPathComment = 'AddPathComment',
 	Consolidate = 'Consolidate',
-	SuggestImprovements = 'SuggestImprovements', // New
-	GenerateDocs = 'GenerateDocs',             // New
-	InferFromData = 'InferFromData',           // New (based on provided code)
+	SuggestImprovements = 'SuggestImprovements',
+	GenerateDocs = 'GenerateDocs',
+	InferFromData = 'InferFromData',
 	// Add more types here later
 }
 
-// Type guard function remains the same
 export function isValidEnhancementType(value: string): value is EnhancementType {
 	return Object.values(EnhancementType).includes(value as EnhancementType);
 }

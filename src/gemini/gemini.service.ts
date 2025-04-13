@@ -3,7 +3,7 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import { EnhancementType } from '../shared/types/enhancement.type.js';
 import { GEMINI_API_KEY, GEMINI_API_ENDPOINT } from '../config.js';
-import { extractCodeBlock } from './utils/code.extractor.js';
+import { extractCodeBlock } from './code.extractor.js';
 
 /**
  * Represents the result of a Gemini enhancement operation.

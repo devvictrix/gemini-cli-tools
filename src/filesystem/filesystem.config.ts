@@ -1,4 +1,4 @@
-// src/filesystem/filesystem.config.ts
+// File: src/filesystem/config/filesystem.config.ts
 
 /**
  * Set of file extensions to include during inspection.
@@ -26,6 +26,9 @@ export const EXCLUDE_PATTERNS: Set<string> = new Set([
  */
 export const EXCLUDE_FILENAMES: Set<string> = new Set([
 	"package-lock.json",
-	"consolidated_sources.ts",
-	"code.extractor.ts",
+	"consolidated_sources.ts", // Exclude potential consolidation output if run in src
+	"consolidated_output.txt", // Exclude consolidation output
+	"code.extractor.ts", // Exclude utility if present
+	"README.md", // Exclude generated docs
+	"docs.md", // Exclude previously generated docs just in case
 ]);
