@@ -1,3 +1,5 @@
+// File: src/gemini/gemini.type.ts
+
 /**
  * Represents the standardized result structure from the Gemini service.
  */

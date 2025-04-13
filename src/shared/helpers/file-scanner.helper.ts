@@ -1,3 +1,5 @@
+// File: src/shared/helpers/file-scanner.helper.ts
+
 // File: src/shared/utils/file.helpers.ts // New Path
 
 import { promises as fs } from "fs";

@@ -1,3 +1,5 @@
+// File: src/shared/helpers/sync-io.helper.ts
+
 // File: src/shared/utils/file-io.utils.ts // Consolidated
 
 import * as fs from 'fs';

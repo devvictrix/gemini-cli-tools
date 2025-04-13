@@ -1,4 +1,5 @@
-// File: src/index.ts
+// File: src/app.ts
+
 // Description: Main application entry point for the Gemini POC tool. Handles command-line arguments,
 // orchestrates file processing, interacts with the Gemini service, and manages local operations.
 

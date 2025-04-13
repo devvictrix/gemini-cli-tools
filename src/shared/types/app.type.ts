@@ -1,4 +1,4 @@
-// File: src/shared/types/app.types.ts
+// File: src/shared/types/app.type.ts
 
 import { EnhancementType } from './enhancement.type.js';
 
