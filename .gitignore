@@ -1,6 +1,10 @@
 # .gitignore
+.env*
+!.env.example
+!.env.template
 
 node_modules/
-.env
-consolidated_output.txt
 dist/
+build/
+coverage/
+*.log

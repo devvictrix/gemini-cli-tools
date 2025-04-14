@@ -1,0 +1,1456 @@
+// Consolidated sources from: /home/devvi/opt/personal-projects/gemini-poc
+// Consolidation timestamp: 2025-04-14 06:57:24
+// Tool Name: gemini-poc (inspector module)
+// Root Directory: /home/devvi/opt/personal-projects/gemini-poc
+// Include Extensions: .env, .js, .json, .ts
+// Exclude Patterns/Files: .git, README.md, build, code.extractor.ts, consolidated_output.txt, consolidated_sources.ts, coverage, dist, docs.md, node_modules, package-lock.json
+
+// File: package.json
+
+{
+  "name": "gemini-poc",
+  "version": "1.0.0",
+  "description": "Proof of concept using Google Gemini API for code tasks",
+  "type": "module",
+  "main": "dist/app.js",
+  "scripts": {
+    "clean": "rimraf ./dist",
+    "build": "npm run clean && tsc",
+    "start": "node dist/app.js",
+    "dev": "tsx src/app.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "gemini",
+    "ai",
+    "typescript",
+    "poc"
+  ],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "p-limit": "^5.0.0",
+    "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "@types/axios": "^0.14.0",
+    "@types/node": "^20.12.12",
+    "@types/yargs": "^17.0.33",
+    "rimraf": "^5.0.7",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.10.5",
+    "typescript": "^5.4.5"
+  }
+
+
+// File: src/app.ts
+
+// Description: Main application entry point for the Gemini POC tool. Handles command-line arguments,
+// orchestrates file processing, interacts with the Gemini service, and manages local operations.
+
+import * as fs from 'fs'; // Keep fs for statSync and potentially other direct uses if needed
+import * as path from 'path';
+import pLimit from 'p-limit'; // Library for limiting concurrency in parallel operations
+import yargs, { Argv } from 'yargs'; // Command-line argument parser
+import { hideBin } from 'yargs/helpers'; // Helper for parsing arguments correctly
+import { enhanceCodeWithGemini, GeminiEnhancementResult } from './gemini/gemini.service.js'; // Gemini interaction service
+import { EnhancementType } from './shared/types/enhancement.type.js'; // Enum defining possible actions
+// Import shared utilities and constants from their new locations
+import { EXCLUDE_FILENAMES } from './shared/constants/filesystem.constants.js'; // Filesystem exclusion constants
+import { inferTypesFromData } from './shared/helpers/type-inference.helper.js'; // Local type inference logic
+import { getConsolidatedSources, getTargetFiles, readSingleFile, updateFileContent, writeOutputFile } from './shared/index.js';
+
+// --- Interfaces ---
+
+/**
+ * Defines the expected structure of parsed command-line arguments.
+ */
+interface AppArguments {
+	command: EnhancementType; // The specific action requested by the user
+	targetPath: string;      // The file or directory to operate on
+	prefix?: string;         // Optional filename prefix filter for directory processing
+	interfaceName?: string;  // Optional name for the interface when using InferFromData
+	[key: string]: unknown;  // Allows for other properties from yargs
+	_: (string | number)[];  // Positional arguments not mapped to specific options
+	$0: string;              // The script name or path
+}
+
+/**
+ * Defines the structure for reporting the result of processing a single file,
+ * especially in parallel or sequential operations.
+ */
+interface FileProcessingResult {
+	filePath: string;                                     // Relative path of the processed file
+	status: 'updated' | 'unchanged' | 'error' | 'processed'; // Outcome of the processing
+	message?: string;                                     // Optional message, typically used for errors
+}
+
+
+// --- Utility Functions ---
+// NOTE: readSingleFile, updateFileContent, writeOutputFile were moved to src/shared/utils/file-io.utils.ts
+// and are now imported.
+
+
+// --- Main Execution Logic ---
+
+/**
+ * The core application logic. Parses arguments, identifies target files,
+ * and executes the requested action (local or via Gemini API).
+ * @param argv The parsed arguments object from yargs.
+ */
+async function runMainLogic(argv: AppArguments) {
+	const { command: action, targetPath, prefix, interfaceName } = argv;
+	const actionDetails = `${prefix ? ` with prefix: ${prefix}` : ''}${interfaceName ? ` (Interface: ${interfaceName})` : ''}`;
+	console.log(`\n[App] Selected action: ${action} on target: ${targetPath}${actionDetails}`);
+
+	// --- Validate Target Path ---
+	let stats: fs.Stats;
+	try {
+		stats = fs.statSync(targetPath); // Check if the target path exists and get its stats
+	} catch (e) {
+		console.error(`\n[App] ❌ Error: Cannot access target path: ${targetPath}. Please ensure it exists.`);
+		process.exit(1); // Exit if target path is inaccessible
+	}
+	// Specific check for InferFromData action, which requires a file
+	if (action === EnhancementType.InferFromData && !stats.isFile()) {
+		console.error(`\n[App] ❌ Error: Target path for '${EnhancementType.InferFromData}' must be a file (e.g., JSON).`);
+		process.exit(1);
+	}
+
+	// --- Classify Action Type ---
+	const isModificationAction = [
+		EnhancementType.AddComments,    // Modifies files by adding comments
+		EnhancementType.AddPathComment, // Modifies files by adding a path comment header
+	].includes(action);
+
+	const usesGeminiApi = [
+		EnhancementType.AddComments,        // Uses Gemini to generate comments
+		EnhancementType.Analyze,            // Uses Gemini for analysis
+		EnhancementType.Explain,            // Uses Gemini for explanation
+		EnhancementType.SuggestImprovements,// Uses Gemini for suggestions
+		EnhancementType.GenerateDocs,       // Uses Gemini to generate documentation
+	].includes(action);
+
+	const isLocalProcessingAction = [
+		EnhancementType.Consolidate,    // Local file consolidation
+		EnhancementType.InferFromData,  // Local type inference from data
+		EnhancementType.AddPathComment, // Local file modification (adding header)
+	].includes(action);
+
+
+	try {
+		let targetFiles: string[] = []; // Array to hold absolute paths of files to process
+
+		// --- Identify Target Files ---
+		// Determine which files to process based on the target path (file/directory) and action
+		if (action === EnhancementType.InferFromData) {
+			// InferFromData always targets a single file
+			targetFiles.push(path.resolve(targetPath));
+			console.log(`[App] Target for '${action}' is the single file: ${targetPath}`);
+		} else if (stats.isDirectory()) {
+			// If target is a directory, find relevant files within it
+			console.log(`[App] Target is a directory. Finding relevant files...`);
+			targetFiles = await getTargetFiles(targetPath, prefix); // Use utility from shared/utils
+			if (targetFiles.length === 0) {
+				console.log("\n[App] No relevant files found matching criteria. Exiting.");
+				return; // Nothing to do
+			}
+			console.log(`[App] Found ${targetFiles.length} files to process for action '${action}'.`);
+		} else if (stats.isFile()) {
+			// If target is a single file, check if it's excluded
+			const filename = path.basename(targetPath);
+			if (EXCLUDE_FILENAMES.has(filename)) { // Use constant from shared/constants
+				console.log(`[App] Target file ${filename} is excluded by configuration.`);
+				return; // Skip excluded files
+			}
+			console.log(`[App] Target is a single file for action '${action}'.`);
+			targetFiles.push(path.resolve(targetPath));
+		}
+
+		// --- Process Based on Action Type ---
+
+		// A) Actions that modify files and might use Gemini (currently only AddComments)
+		if (isModificationAction && action === EnhancementType.AddComments) {
+			// --- PARALLEL MODIFICATION FLOW (AddComments) ---
+			const concurrencyLimit = 5; // Limit simultaneous API calls/file writes
+			const limit = pLimit(concurrencyLimit);
+			console.log(`\n[App] Starting PARALLEL modification action '${action}' on ${targetFiles.length} file(s) with concurrency ${concurrencyLimit}...`);
+
+			const fileProcessor = async (absoluteFilePath: string): Promise<FileProcessingResult> => {
+				const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
+				try {
+					const originalCode = readSingleFile(absoluteFilePath); // Use imported utility
+					const result: GeminiEnhancementResult = await enhanceCodeWithGemini(action, originalCode);
+
+					if (result.type === 'code' && result.content !== null) {
+						if (originalCode.trim() !== result.content.trim()) {
+							// Only write if content has changed
+							const updated = updateFileContent(absoluteFilePath, result.content); // Use imported utility
+							return { filePath: relativeFilePath, status: updated ? 'updated' : 'error', message: updated ? undefined : 'File write failed' };
+						} else {
+							console.log(`    [App] No changes needed for ${relativeFilePath}.`);
+							return { filePath: relativeFilePath, status: 'unchanged' };
+						}
+					} else if (result.type === 'error') {
+						console.error(`    [App] ❌ Gemini failed for ${relativeFilePath}: ${result.content}`);
+						return { filePath: relativeFilePath, status: 'error', message: `Gemini Error: ${result.content}` };
+					} else {
+						console.warn(`    [App] ⚠️ Received unexpected result type '${result.type}' or null content (expected 'code') for ${relativeFilePath}.`);
+						return { filePath: relativeFilePath, status: 'error', message: `Unexpected result type/content: ${result.type}` };
+					}
+				} catch (fileProcessingError) {
+					console.error(`    [App] ❌ Error during Gemini processing for ${relativeFilePath}: ${fileProcessingError instanceof Error ? fileProcessingError.message : fileProcessingError}`);
+					return { filePath: relativeFilePath, status: 'error', message: `File/API Processing Error: ${fileProcessingError instanceof Error ? fileProcessingError.message : "Unknown error"}` };
+				}
+			};
+
+			// Run processing tasks in parallel with the defined limit
+			const tasks = targetFiles.map(filePath => limit(() => fileProcessor(filePath)));
+			const results: FileProcessingResult[] = await Promise.all(tasks);
+
+			// --- Summarize Parallel Results ---
+			let successCount = 0;
+			let unchangedCount = 0;
+			let errorCount = 0;
+			results.forEach(res => {
+				switch (res.status) {
+					case 'updated': successCount++; break;
+					case 'unchanged': unchangedCount++; break;
+					case 'error': errorCount++; break;
+				}
+			});
+			console.log("\n--- Parallel Modification Summary ---");
+			console.log(`  Action:              ${action}`);
+			console.log(`  Total Files Targeted:  ${targetFiles.length}`);
+			console.log(`  Successfully Updated:  ${successCount}`);
+			console.log(`  No Changes Needed:   ${unchangedCount}`);
+			console.log(`  Errors Encountered:    ${errorCount}`);
+			console.log("-----------------------------------");
+			if (errorCount > 0) process.exitCode = 1; // Indicate failure if errors occurred
+
+
+			// B) Actions that use Gemini but DO NOT modify files (Analyze, Explain, Suggest, GenerateDocs)
+		} else if (usesGeminiApi && !isModificationAction) {
+			// --- NON-MODIFICATION FLOW using GEMINI ---
+			let codeToProcess: string;
+			const geminiRequestType = action; // Keep track of the original action requested
+
+			// Consolidate code if multiple files are targeted or if the target is a directory
+			if (stats.isDirectory() || targetFiles.length > 1) {
+				console.log(`\n[App] Consolidating ${targetFiles.length} file(s) for Gemini action '${action}'...`);
+				// Determine the root for consolidation (target path if directory, parent dir if single file target led to multiple matches)
+				const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetFiles[0]);
+				codeToProcess = await getConsolidatedSources(consolidationRoot, prefix); // Use imported utility
+			} else if (targetFiles.length === 1) {
+				// Read single file if only one target
+				console.log(`\n[App] Reading single file for Gemini action '${action}'...`);
+				codeToProcess = readSingleFile(targetFiles[0]); // Use imported utility
+			} else {
+				// Should not happen due to earlier checks, but provides a safeguard
+				console.error(`[App] Internal Error: No target files identified for Gemini action '${action}'.`);
+				process.exitCode = 1;
+				return;
+			}
+
+			// Avoid sending empty content to the API
+			if (codeToProcess.trim() === '') {
+				console.warn(`[App] Warning: Content to send to Gemini for action '${action}' is empty. Skipping API call.`);
+				return;
+			}
+
+			console.log(`\n[App] Invoking Gemini service for action: ${geminiRequestType}...`);
+			const result: GeminiEnhancementResult = await enhanceCodeWithGemini(geminiRequestType, codeToProcess);
+
+			// --- Handle Gemini Result ---
+			if (result.type === 'text' && result.content !== null) {
+				// Special handling for GenerateDocs: write to README.md
+				if (geminiRequestType === EnhancementType.GenerateDocs) {
+					const outputFileName = 'README.md'; // Define output file name
+					const outputFilePath = path.resolve(process.cwd(), outputFileName); // Absolute path
+					console.log(`\n[App] Attempting to write generated documentation to ${outputFileName}...`);
+					const success = writeOutputFile(outputFilePath, result.content); // Use imported utility
+					if (!success) {
+						console.error(`[App] ❌ Failed to write documentation file.`);
+						process.exitCode = 1; // Indicate failure
+					} else {
+						console.log(`\n[App] ✅ Generated documentation saved to: ${outputFileName}`);
+					}
+				} else {
+					// For other text-based actions (Analyze, Explain, Suggest), print to console
+					console.log(`\n--- Gemini ${geminiRequestType} Result ---`);
+					console.log(result.content);
+					console.log(`--- End ${geminiRequestType} Result ---\n`);
+				}
+			} else if (result.type === 'error') {
+				// Handle errors reported by the Gemini service
+				console.error(`\n[App] ❌ Gemini service failed: ${result.content ?? 'No specific error message provided.'}`);
+				process.exitCode = 1;
+			} else {
+				// Handle unexpected results (e.g., got 'code' when 'text' was expected)
+				console.warn(`[App] ⚠️ Received unexpected result type '${result.type}' or null content (expected 'text') for ${geminiRequestType} action.`);
+				if (result.content) {
+					console.log("--- Unexpected Content Received ---");
+					console.log(result.content.substring(0, 500) + (result.content.length > 500 ? '...' : '')); // Log preview
+					console.log("----------------------------------");
+				}
+				process.exitCode = 1; // Indicate potential issue
+			}
+
+			// C) Actions processed locally WITHOUT Gemini (Consolidate, InferFromData, AddPathComment)
+		} else if (isLocalProcessingAction) {
+			// --- LOCAL PROCESSING FLOW ---
+			console.log(`\n[App] Starting local action '${action}'...`);
+
+			// C.1) Consolidate Files
+			if (action === EnhancementType.Consolidate) {
+				console.log(`[App] Consolidating ${targetFiles.length} file(s)...`);
+				// Determine the root for consolidation
+				const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetPath); // Use original targetPath for root logic
+				console.log(`[App] Consolidating from root: ${consolidationRoot} ${prefix ? `with prefix '${prefix}'` : ''}...`);
+				const consolidatedContent = await getConsolidatedSources(consolidationRoot, prefix); // Use imported utility
+				const outputFileName = 'consolidated_output.txt'; // Define output file name
+				const outputFilePath = path.resolve(process.cwd(), outputFileName); // Absolute path
+				const success = writeOutputFile(outputFilePath, consolidatedContent); // Use imported utility
+				if (!success) process.exitCode = 1;
+				else console.log(`\n[App] ✅ You can now find consolidated content in: ${outputFileName}`);
+
+				// C.2) Infer Types from Data File
+			} else if (action === EnhancementType.InferFromData) {
+				if (!interfaceName) { // Should be caught by yargs demandOption, but good practice
+					console.error("[App] Internal Error: Interface name missing for InferFromData.");
+					process.exit(1);
+				}
+				const dataFilePath = targetFiles[0]; // InferFromData targets only one file
+				const relativeDataFilePath = path.relative(process.cwd(), dataFilePath).split(path.sep).join('/');
+				console.log(`[App] Inferring types from data file: ${relativeDataFilePath}`);
+				try {
+					const fileContent = readSingleFile(dataFilePath); // Use imported utility
+					let data: any;
+					try {
+						data = JSON.parse(fileContent); // Parse the file content as JSON
+					} catch (parseError) {
+						console.error(`[App] ❌ Error parsing JSON data from ${relativeDataFilePath}: ${parseError instanceof Error ? parseError.message : parseError}`);
+						process.exit(1);
+					}
+					const inferredInterface = inferTypesFromData(interfaceName, data); // Perform inference
+					console.log(`\n--- Inferred Interface: ${interfaceName} ---`);
+					console.log(inferredInterface); // Print the result
+					console.log(`--- End Interface ---`);
+				} catch (inferenceError) {
+					console.error(`[App] ❌ Error during type inference for ${relativeDataFilePath}: ${inferenceError instanceof Error ? inferenceError.message : inferenceError}`);
+					process.exit(1);
+				}
+
+				// C.3) Add Path Comment Header (Local Modification)
+			} else if (action === EnhancementType.AddPathComment) {
+				console.log(`\n[App] Starting SEQUENTIAL action '${action}' on ${targetFiles.length} file(s)...`);
+				let updatedCount = 0;
+				let unchangedCount = 0;
+				let skippedCount = 0; // Counter for skipped files (JSON, ENV, etc.)
+				let errorCount = 0;
+
+				// Define file extensions that don't support '//' comments
+				const nonCommentableExtensions = new Set(['.json', '.env']);
+				// Regex to detect *any* leading comment line (JS/TS/Shell style) for removal during update
+				// Note: This is a simple check, might need refinement for complex block comments /* */
+				const anyCommentRegex = /^\s*(\/\/.*|#.*)/;
+				// Specific regex for *our* path comment format remains the same for precise checks
+				const pathCommentRegex = /^\s*\/\/\s*File:\s*(.+?\.(?:ts|js|json|env))\s*$/; // Keep for parsing if needed, but direct comparison is safer
+
+				// Process files one by one sequentially
+				for (const absoluteFilePath of targetFiles) {
+					const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
+					const fileExtension = path.extname(absoluteFilePath).toLowerCase();
+
+					// --- Step 1: Skip non-commentable files ---
+					if (nonCommentableExtensions.has(fileExtension)) {
+						console.log(`    [App] ⏩ Skipping non-commentable file type: ${relativeFilePath}`);
+						skippedCount++;
+						continue; // Move to the next file
+					}
+
+					try {
+						const pathComment = `// File: ${relativeFilePath}`; // The desired comment header
+						const originalCode = readSingleFile(absoluteFilePath); // Use imported utility
+						const lines = originalCode.split(/\r?\n/); // Split into lines
+
+						// --- Step 2: Check if file is already correctly formatted ---
+						let firstNonBlankLineIndex = -1;
+						let firstNonBlankLine = '';
+						for (let i = 0; i < lines.length; i++) {
+							const trimmedLine = lines[i].trim();
+							if (trimmedLine !== '') {
+								firstNonBlankLineIndex = i;
+								firstNonBlankLine = trimmedLine;
+								break;
+							}
+
+						let alreadyCorrect = false;
+						if (firstNonBlankLineIndex === 0 && firstNonBlankLine === pathComment) {
+							// Found the correct comment on the very first line.
+							// Now check if the next line is blank or doesn't exist.
+							if (lines.length === 1 || (lines.length > 1 && lines[1].trim() === '')) {
+								alreadyCorrect = true;
+							}
+
+						if (alreadyCorrect) {
+							console.log(`    [App] ✅ No update needed for ${relativeFilePath} (Correct header found)`);
+							unchangedCount++;
+							continue; // Move to the next file
+						}
+
+						// --- Step 3: Prepare for Update (File needs changes) ---
+						console.log(`    [App] 🔄 Updating header for ${relativeFilePath}...`);
+
+						// Find the index of the first line of *actual code*
+						// (Skipping all initial blank lines AND all initial comment lines)
+						let firstCodeLineIndex = 0;
+						while (firstCodeLineIndex < lines.length) {
+							const lineTrim = lines[firstCodeLineIndex].trim();
+							if (lineTrim === '' || anyCommentRegex.test(lineTrim)) {
+								firstCodeLineIndex++;
+							} else {
+								break; // Found the first non-blank, non-comment line
+							}
+
+						// Reconstruct the code: Our comment, blank line, then code starting from firstCodeLineIndex
+						const codeContentLines = lines.slice(firstCodeLineIndex);
+						// Handle case where the file only contained comments/whitespace
+						const codeContent = codeContentLines.length > 0 ? codeContentLines.join('\n') : '';
+						const newCode = `${pathComment}\n\n${codeContent}`;
+
+						const updated = updateFileContent(absoluteFilePath, newCode); // Use imported utility
+						if (updated) updatedCount++; else errorCount++;
+
+					} catch (fileProcessingError) {
+						console.error(`    [App] ❌ Error during AddPathComment for ${relativeFilePath}: ${fileProcessingError instanceof Error ? fileProcessingError.message : fileProcessingError}`);
+						errorCount++;
+					}
+				} // End for loop (sequential processing)
+
+				// --- Summarize Sequential Results ---
+				console.log("\n--- Sequential Action Summary ---");
+				console.log(`  Action:              ${action}`);
+				console.log(`  Total Files Targeted:  ${targetFiles.length}`);
+				console.log(`  Successfully Updated:  ${updatedCount}`);
+				console.log(`  No Changes Needed:   ${unchangedCount}`);
+				console.log(`  Skipped (Non-Comment): ${skippedCount}`); // Added skipped count
+				console.log(`  Errors Encountered:    ${errorCount}`);
+				console.log("---------------------------------");
+				if (errorCount > 0) process.exitCode = 1; // Indicate failure if errors occurred
+			}
+		} else {
+			// Fallback for unhandled action types (should not happen with current structure)
+			console.error(`[App] Internal Error: Action "${action}" was not handled by any processing flow.`);
+			process.exit(1);
+		}
+
+	} catch (error) {
+		// Catch-all for unexpected errors during the main logic execution
+		console.error("\n[App] ❌ An unexpected error occurred during script execution:");
+		if (error instanceof Error) {
+			console.error(`   Message: ${error.message}`);
+			// console.error(error.stack); // Uncomment for full stack trace during debugging
+		} else {
+			console.error("   Unknown error object:", error);
+		}
+		process.exit(1); // Exit with failure code
+	}
+
+	console.log("\n[App] Script execution finished.");
+} // End runMainLogic
+
+// --- Argument Parsing and Execution Setup ---
+
+/**
+ * Sets up common options (targetPath, prefix) for yargs commands.
+ * @param yargsInstance The yargs instance to configure.
+ * @returns The configured yargs instance.
+ */
+const setupDefaultCommand = (yargsInstance: Argv<{}>): Argv<{ targetPath: string; prefix: string | undefined }> => {
+	return yargsInstance
+		.positional('targetPath', {
+			describe: 'Target file or directory path',
+			type: 'string',
+			demandOption: true, // targetPath is always required
+		})
+		.option('prefix', {
+			alias: 'p',
+			type: 'string',
+			description: 'Optional filename prefix filter for directory processing',
+			demandOption: false, // prefix is optional
+		});
+};
+
+// Configure yargs commands for each EnhancementType
+yargs(hideBin(process.argv))
+	.command( // AddComments
+		`${EnhancementType.AddComments} <targetPath>`,
+		'Add AI-generated comments to files.',
+		setupDefaultCommand, // Use common options setup
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.AddComments } as AppArguments) // Run main logic with command type
+	)
+	.command( // Analyze
+		`${EnhancementType.Analyze} <targetPath>`,
+		'Analyze code structure and quality.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.Analyze } as AppArguments)
+	)
+	.command( // Explain
+		`${EnhancementType.Explain} <targetPath>`,
+		'Explain what the code does.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.Explain } as AppArguments)
+	)
+	.command( // AddPathComment
+		`${EnhancementType.AddPathComment} <targetPath>`,
+		'Add "// File: <relativePath>" comment header to files.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.AddPathComment } as AppArguments)
+	)
+	.command( // Consolidate
+		`${EnhancementType.Consolidate} <targetPath>`,
+		'Consolidate code into a single output file (consolidated_output.txt).',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.Consolidate } as AppArguments)
+	)
+	.command( // SuggestImprovements
+		`${EnhancementType.SuggestImprovements} <targetPath>`,
+		'Suggest improvements for the code.',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.SuggestImprovements } as AppArguments)
+	)
+	.command( // GenerateDocs
+		`${EnhancementType.GenerateDocs} <targetPath>`,
+		'Generate Markdown documentation (saves to README.md).',
+		setupDefaultCommand,
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.GenerateDocs } as AppArguments)
+	)
+	.command( // InferFromData
+		`${EnhancementType.InferFromData} <targetPath>`,
+		'Infer TypeScript interface from a JSON data file.',
+		(yargsInstance) => { // Custom setup for this command
+			return yargsInstance
+				.positional('targetPath', { // Requires a file path
+					describe: 'Path to the JSON data file',
+					type: 'string',
+					demandOption: true,
+				})
+				.option('interfaceName', { // Requires an interface name
+					alias: 'i',
+					type: 'string',
+					description: 'Name for the generated TypeScript interface',
+					demandOption: true, // Interface name is required for this command
+				});
+		},
+		(argv) => runMainLogic({ ...argv, command: EnhancementType.InferFromData } as AppArguments) // Run main logic
+	)
+	.demandCommand(1, 'Please specify a valid command (action).') // Require at least one command
+	.strict() // Report errors for unknown options/commands
+	.help() // Enable --help option
+	.alias('h', 'help') // Alias -h for help
+	.wrap(null) // Adjust terminal width automatically
+	.fail((msg, err, yargs) => { // Custom failure handler
+		if (err) {
+			// Handle unexpected parsing errors
+			console.error("\n[App] 🚨 An unexpected error occurred during argument parsing:");
+			console.error(err);
+			process.exit(1);
+		}
+		// Handle validation errors (missing command, wrong options, etc.)
+		console.error(`\n[App] ❌ Error: ${msg}\n`);
+		yargs.showHelp(); // Show help message on failure
+		process.exit(1);
+	})
+	.parseAsync() // Parse arguments asynchronously
+	.catch(error => { // Catch errors from the async parsing or command execution if not caught internally
+		console.error("\n[App] 🚨 An unexpected critical error occurred during execution:");
+		if (error instanceof Error) {
+			console.error(`   Message: ${error.message}`);
+			console.error(error.stack); // Log stack trace for critical errors
+		} else {
+			console.error("   An unknown error object was thrown:", error);
+		}
+		process.exit(1); // Exit with failure code
+	});
+
+// File: src/config.ts
+
+// src/config.ts
+
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// --- Required API Key ---
+/**
+ * The Gemini API key.
+ * This is a required environment variable.
+ * @throws {Error} If the GEMINI_API_KEY environment variable is not set.
+ */
+export const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+if (!GEMINI_API_KEY) {
+    console.error("CRITICAL ERROR: GEMINI_API_KEY environment variable not found.");
+    console.log("Please create a .env file in the project root and add your API key:");
+    console.log("GEMINI_API_KEY=YOUR_API_KEY_HERE");
+    process.exit(1);
+}
+
+// --- Selectable Model Name ---
+const DEFAULT_GEMINI_MODEL = 'gemini-1.5-flash-latest';
+/**
+ * The Gemini model name to use.
+ * Defaults to 'gemini-1.5-flash-latest' if the GEMINI_MODEL_NAME environment variable is not set.
+ */
+export const GEMINI_MODEL_NAME = process.env.GEMINI_MODEL_NAME || DEFAULT_GEMINI_MODEL;
+
+// --- Construct Endpoint Dynamically ---
+// Base URL structure for the generateContent method
+const GEMINI_API_BASE = `https://generativelanguage.googleapis.com/v1beta/models`;
+/**
+ * The full Gemini API endpoint URL.
+ * This is constructed dynamically using the GEMINI_API_BASE and GEMINI_MODEL_NAME.
+ */
+export const GEMINI_API_ENDPOINT = `${GEMINI_API_BASE}/${GEMINI_MODEL_NAME}:generateContent`; // Construct the full endpoint URL
+
+
+// --- Log Loaded Configuration ---
+console.log("Configuration loaded.");
+console.log(` > Using Gemini Model: ${GEMINI_MODEL_NAME}`);
+console.log(` > Gemini Endpoint: ${GEMINI_API_ENDPOINT}`);
+
+// File: src/gemini/gemini.service.ts
+
+import axios, { AxiosError, AxiosResponse } from 'axios';
+import { EnhancementType } from '../shared/types/enhancement.type.js';
+import { GEMINI_API_KEY, GEMINI_API_ENDPOINT } from '../config.js';
+import { extractCodeBlock } from './code.extractor.js';
+
+/**
+ * Represents the result of a Gemini enhancement operation.
+ */
+export interface GeminiEnhancementResult {
+    /** The type of content returned: 'code', 'text', or 'error'. */
+    type: 'code' | 'text' | 'error';
+    /** The content of the result, which can be a string or null if an error occurred. */
+    content: string | null;
+}
+
+/**
+ * Generates the appropriate prompt for the Gemini API based on the desired enhancement.
+ * @param enhancement The type of enhancement to perform.
+ * @param code The source code to be enhanced or analyzed.
+ * @returns The generated prompt string.
+ */
+function generatePrompt(enhancement: EnhancementType, code: string): string {
+    console.log(`[Gemini] Generating prompt for enhancement type: ${enhancement}`);
+    switch (enhancement) {
+        case EnhancementType.AddComments:
+            return `
+Review the following TypeScript/JavaScript code. Add comprehensive TSDoc/JSDoc comments /** ... */ for all exported functions, classes, interfaces, types, and significant internal logic. Include @param, @returns, @throws tags where appropriate.
+Also add concise inline comments // using // for complex or non-obvious implementation steps within functions or methods.
+Ensure existing comments are preserved or improved if necessary.
+
+**CRITICAL INSTRUCTION:** You MUST return the **ENTIRE, COMPLETE, ORIGINAL FILE CONTENT**, including all existing code and comments, with ONLY the new TSDoc/JSDoc and inline comments added or updated as requested. Do NOT omit any part of the original file.
+**RESPONSE FORMAT:** Respond ONLY with the full, updated code block itself, enclosed in a single \`\`\`typescript ... \`\`\` or \`\`\`javascript ... \`\`\` block. Do not include ANY introductory text, closing remarks, or explanations outside the code block.
+
+\`\`\`typescript
+${code}
+\`\`\`
+`;
+        case EnhancementType.Analyze: // Keep Analyze separate for potentially different focus later
+            return `
+Analyze the following code. Provide a high-level overview of its purpose, structure, and key components. Identify potential areas for improvement regarding clarity, efficiency, or adherence to best practices, but focus on analysis rather than direct suggestions.
+
+\`\`\`typescript
+${code}
+\`\`\`
+`;
+        case EnhancementType.Explain:
+            return `
+Explain the following TypeScript/JavaScript code in simple terms. Describe its overall purpose, how the main parts work together, and what specific functions or classes are responsible for. Assume the reader has some programming knowledge but may not be familiar with this specific code.
+
+\`\`\`typescript
+${code}
+\`\`\`
+`;
+        case EnhancementType.SuggestImprovements: // New
+            return `
+Act as a senior software engineer performing a code review on the following TypeScript/JavaScript code. Provide specific, actionable suggestions for improvement. Focus on:
+1.  **Readability & Clarity:** Can variable names, function names, or structure be improved? Is the logic easy to follow?
+2.  **Potential Bugs & Edge Cases:** Are there any obvious logical errors, potential null/undefined issues, or unhandled edge cases?
+3.  **Best Practices:** Does the code follow common language idioms and best practices (e.g., error handling, immutability, proper use of async/await)?
+4.  **Performance:** Are there any obvious performance bottlenecks or areas where efficiency could be significantly improved? (Avoid premature optimization).
+5.  **Maintainability:** How easy would it be to modify or extend this code later? Suggest ways to improve modularity or reduce coupling if applicable.
+
+**RESPONSE FORMAT:** Present your suggestions clearly, perhaps using bullet points or numbered lists, referencing specific lines or sections of the code where possible. Be constructive and explain the reasoning behind each suggestion. Do NOT rewrite the code yourself. Respond only with the suggestions.
+
+\`\`\`typescript
+${code}
+\`\`\`
+`;
+        case EnhancementType.GenerateDocs: // New
+            return `
+Analyze the following TypeScript/JavaScript code and generate documentation in Markdown format suitable for a README file section or a separate documentation file.
+
+The documentation should include:
+1.  **Overview:** A brief description of the code's overall purpose and functionality.
+2.  **Key Components:** Descriptions of major functions, classes, or modules, including their responsibilities.
+3.  **Usage Examples (if applicable):** Show how to use the primary functions or classes with simple examples.
+4.  **Inputs/Outputs (if applicable):** Describe important function parameters and return values.
+
+**RESPONSE FORMAT:** Respond ONLY with the generated Markdown content. Do not include any introductory text, closing remarks, or explanations outside the Markdown. Start directly with the Markdown content (e.g., starting with a heading like '## Module Documentation').
+
+\`\`\`typescript
+${code}
+\`\`\`
+`;
+        // Note: InferFromData does not use Gemini, so no prompt needed here.
+        // Note: AddPathComment and Consolidate do not use Gemini.
+
+        default:
+            // Should not happen if using enum correctly, but good practice
+            console.warn(`[Gemini] Unknown enhancement type for prompt generation: ${enhancement}. Using generic prompt.`);
+            // Returns a generic prompt as a fallback
+            return `Review and provide feedback on the following code:\n\n\`\`\`typescript\n${code}\n\`\`\``;
+    }
+
+/**
+ * Calls the Gemini API with the generated prompt.
+ * Handles API request/response logic and basic error handling.
+ * @param promptText The complete prompt to send to the Gemini API.
+ * @returns A promise resolving to the raw text response from Gemini, or null if an error occurs.
+ */
+async function callGeminiApi(promptText: string): Promise<string | null> {
+    console.log(`[Gemini] Sending request to Gemini API (${promptText.length} chars)...`);
+    // Log a preview, careful not to log sensitive info if prompts contain keys/secrets in future
+    // const preview = promptText.length > 500 ? promptText.substring(0, 500) + '...' : promptText;
+    // console.log("--- Prompt Preview ---");
+    // console.log(preview);
+    // console.log("----------------------");
+
+    const requestData = {
+        contents: [{ parts: [{ text: promptText }] }],
+        // Optional: Configure generation parameters
+        // generationConfig: {
+        //     temperature: 0.7, // Controls randomness (0=deterministic, 1=max creative)
+        //     topK: 40,       // Consider top K most likely tokens
+        //     topP: 0.95,     // Consider tokens comprising P cumulative probability
+        //     maxOutputTokens: 8192, // Max tokens in response
+        // },
+        // Optional: Safety Settings (adjust levels as needed)
+        // safetySettings: [
+        //     { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+        //     { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+        //     { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+        //     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+        // ]
+    };
+
+    const config = {
+        headers: { 'Content-Type': 'application/json' },
+        params: { key: GEMINI_API_KEY },
+        timeout: 120000 // Increase timeout (e.g., 120 seconds) for potentially longer generation tasks
+    };
+
+    try {
+        const response: AxiosResponse = await axios.post(GEMINI_API_ENDPOINT, requestData, config);
+
+        // Robustly check for response structure and potential blocks
+        const candidate = response.data?.candidates?.[0];
+
+        if (candidate?.finishReason && candidate.finishReason !== "STOP") {
+            console.warn(`[Gemini] Warning: Response generation finished due to reason: ${candidate.finishReason}.`);
+            if (candidate.finishReason === "SAFETY") {
+                console.error("[Gemini] ❌ Error: Gemini blocked the response due to safety settings.");
+                // Log safety ratings if available
+                if (candidate.safetyRatings) {
+                    console.error("[Gemini] Safety Ratings:", JSON.stringify(candidate.safetyRatings, null, 2));
+                }
+                return null; // Indicate failure due to safety block
+            }
+            // Other reasons might include MAX_TOKENS, RECITATION, etc.
+        }
+
+        const responseText = candidate?.content?.parts?.[0]?.text;
+
+        if (responseText) {
+            console.log(`[Gemini] Received response (${responseText.trim().length} chars).`);
+            return responseText.trim();
+        } else {
+            console.warn("[Gemini] Warning: Received response, but no text content found in the expected location.");
+            console.log("[Gemini] Full Response Data:", JSON.stringify(response.data, null, 2));
+            return null; // Indicate unexpected structure
+        }
+    } catch (error) {
+        console.error("[Gemini] ❌ Error calling Gemini API:");
+        const axiosError = error as AxiosError;
+        if (axiosError.response) {
+            console.error(`  Status: ${axiosError.response.status}`);
+            console.error(`  Data: ${JSON.stringify(axiosError.response.data, null, 2)}`);
+            // Check for specific Gemini error details if available
+            const geminiError = (axiosError.response.data as any)?.error;
+            if (geminiError) {
+                console.error(`  Gemini Error Code: ${geminiError.code}`);
+                console.error(`  Gemini Error Message: ${geminiError.message}`);
+                console.error(`  Gemini Error Status: ${geminiError.status}`);
+            }
+
+        } else if (axiosError.request) {
+            console.error("  Request Error: No response received (check network, endpoint, timeout).", axiosError.code);
+        } else {
+            console.error('  Setup Error Message:', axiosError.message);
+        }
+        return null; // Indicate failure
+    }
+
+
+/**
+ * Orchestrates the process of enhancing code or generating text via the Gemini API.
+ * Determines expected output type based on action and processes the response.
+ * @param enhancementType The type of enhancement/generation requested.
+ * @param code The source code (or consolidated code) to process.
+ * @returns A promise resolving to a GeminiEnhancementResult.
+ */
+export async function enhanceCodeWithGemini(
+    enhancementType: EnhancementType,
+    code: string
+): Promise<GeminiEnhancementResult> {
+
+    // Actions expected to return code
+    const expectsCode = [
+        EnhancementType.AddComments,
+        // Add future code-generating actions here (e.g., Refactor, GenerateTests)
+    ].includes(enhancementType);
+
+    // Actions expected to return text (analysis, explanation, docs, etc.)
+    const expectsText = [
+        EnhancementType.Analyze,
+        EnhancementType.Explain,
+        EnhancementType.SuggestImprovements,
+        EnhancementType.GenerateDocs,
+    ].includes(enhancementType);
+
+    // Generate the appropriate prompt
+    const prompt = generatePrompt(enhancementType, code);
+    if (!prompt) {
+        return { type: 'error', content: `Failed to generate prompt for action: ${enhancementType}` };
+    }
+
+    // Call the API
+    const rawResponse = await callGeminiApi(prompt);
+
+    // Handle API call failure
+    if (rawResponse === null) { // Check explicitly for null, as "" could be a valid (empty) response
+        return { type: 'error', content: 'Failed to get a valid response from Gemini API.' };
+    }
+
+    // Process response based on expected type
+    if (expectsCode) {
+        console.log(`[Gemini] Processing response for ${enhancementType} (expects code)...`);
+        const extractedCode = extractCodeBlock(rawResponse);
+        if (extractedCode) {
+            console.log("[Gemini] Code block extracted successfully.");
+            return { type: 'code', content: extractedCode };
+        } else {
+            console.warn(`[Gemini] ${enhancementType} requested, but couldn't extract a fenced code block.`);
+            console.log("--- Full Raw Response (for debugging code extraction) ---");
+            console.log(rawResponse);
+            console.log("--- End Full Raw Response ---");
+            return { type: 'error', content: `Failed to extract valid code block from Gemini response for ${enhancementType}. Raw response logged.` };
+        }
+    } else if (expectsText) {
+        console.log(`[Gemini] Processing response for ${enhancementType} (expects text)...`);
+        // For text-based results, return the raw response directly
+        return { type: 'text', content: rawResponse };
+    } else {
+        // Should not happen if all Gemini-using types are covered above
+        console.error(`[Gemini] Internal Error: Unhandled enhancement type in Gemini response processing: ${enhancementType}`);
+        return { type: 'error', content: `Unhandled enhancement type: ${enhancementType}` };
+    }
+
+
+// File: src/gemini/gemini.type.ts
+
+/**
+ * Represents the standardized result structure from the Gemini service.
+ */
+export interface GeminiEnhancementResult {
+    /** The type of content returned: 'code', 'text', or 'error'. */
+    type: 'code' | 'text' | 'error';
+    /** The content of the result (code, text, or error message), or null if an error occurred before content generation. */
+    content: string | null;
+}
+
+// File: src/shared/constants/filesystem.constants.ts
+
+/**
+ * Set of file extensions to include during inspection.
+ */
+export const INCLUDE_EXTENSIONS: Set<string> = new Set([
+    ".ts",
+    ".js",
+    ".json",
+    ".env",
+]);
+
+/**
+ * Set of directory or file name patterns to exclude during inspection.
+ */
+export const EXCLUDE_PATTERNS: Set<string> = new Set([
+    "node_modules",
+    "dist",
+    "build",
+    ".git",
+    "coverage",
+]);
+
+/**
+ * Set of specific filenames to exclude during inspection.
+ */
+export const EXCLUDE_FILENAMES: Set<string> = new Set([
+    "package-lock.json",
+    "consolidated_sources.ts", // Exclude potential consolidation output if run in src
+    "consolidated_output.txt", // Exclude consolidation output
+    "code.extractor.ts", // Exclude utility if present
+    "README.md", // Exclude generated docs
+    "docs.md", // Exclude previously generated docs just in case
+]);
+
+// File: src/shared/helpers/file-scanner.helper.ts
+
+// File: src/shared/utils/file.helpers.ts // New Path
+
+import { promises as fs } from "fs";
+import * as path from "path";
+
+/**
+ * Recursively traverse a directory and return all file paths, respecting exclusion patterns.
+ * @param dir The directory to traverse.
+ * @param excludePatterns A set of directory/file name patterns to exclude.
+ * @param excludeFilenames A set of specific filenames to exclude.
+ * @returns An array of absolute file paths.
+ */
+export async function getAllFiles(
+    dir: string,
+    excludePatterns: Set<string>,
+    excludeFilenames: Set<string>
+): Promise<string[]> {
+    let results: string[] = [];
+    try {
+        const list = await fs.readdir(dir);
+        for (const file of list) {
+            const filePath = path.join(dir, file);
+
+            // Check against exclusion patterns/filenames early
+            if (excludePatterns.has(file) || excludeFilenames.has(file)) {
+                // Keep logging consistent or make it more generic
+                // console.log(`  [FileUtil] Excluding: ${filePath} (matches pattern/filename)`);
+                continue;
+            }
+
+            try {
+                const stat = await fs.stat(filePath);
+                if (stat && stat.isDirectory()) {
+                    // Recursively search subdirectories
+                    results = results.concat(await getAllFiles(filePath, excludePatterns, excludeFilenames));
+                } else {
+                    // It's a file, add it to results
+                    results.push(filePath);
+                }
+            } catch (statError) {
+                console.warn(`  [FileUtil] Warning: Could not stat file/dir: ${filePath}. Skipping. Error: ${statError instanceof Error ? statError.message : statError}`);
+            }
+    } catch (readdirError) {
+        console.error(`  [FileUtil] Error reading directory: ${dir}. Error: ${readdirError instanceof Error ? readdirError.message : readdirError}`);
+        // Decide if you want to throw or just return empty results for this branch
+    }
+    return results;
+}
+
+/**
+ * Removes leading blank lines and any leading comment line that already contains the file path.
+ * Filters duplicate consecutive lines.
+ * @param lines Array of file lines.
+ * @param friendlyPath The relative (friendly) file path used in marker comments.
+ * @returns A filtered array of lines.
+ */
+export function filterLines(lines: string[], friendlyPath: string): string[] {
+    let startIndex = 0;
+    const pathCommentRegex = /^\s*\/\/\s*File:\s*(.+)\s*$/; // Slightly simpler regex if needed
+
+    // Find the first non-empty, non-marker line
+    while (startIndex < lines.length) {
+        const firstLine = lines[startIndex].trim();
+        if (firstLine === "") {
+            startIndex++; // Skip blank lines
+        } else if (pathCommentRegex.test(firstLine) && firstLine.includes(friendlyPath)) {
+            // Skip marker comment lines for this specific file
+            startIndex++;
+        } else {
+            break; // Stop when the first relevant line is found
+        }
+
+    const relevantLines = lines.slice(startIndex);
+
+    // Remove duplicate consecutive non-blank lines.
+    const filteredLines: string[] = [];
+    let prevLineTrimmed: string | null = null; // Initialize differently
+
+    for (const line of relevantLines) {
+        const currentLineTrimmed = line.trim();
+        // Skip if current line is identical to the previous one (ignoring whitespace), but ONLY if it's not blank
+        if (currentLineTrimmed !== "" && currentLineTrimmed === prevLineTrimmed) {
+            continue;
+        }
+        filteredLines.push(line);
+        prevLineTrimmed = currentLineTrimmed; // Update previous line
+    }
+    return filteredLines;
+}
+
+// File: src/shared/helpers/source-aggregator.helper.ts
+
+// File: src/shared/utils/filesystem.utils.ts // New File
+
+import { promises as fs } from "fs";
+import * as path from "path";
+import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from '../constants/filesystem.constants.js'; // Updated import path
+import { filterLines, getAllFiles } from "../index.js";
+
+const logPrefix = "[FileSystem]"; // Consistent logging prefix
+
+/**
+ * Finds all relevant source files within a directory based on config.
+ * @param rootDir The root directory to scan.
+ * @param filePrefix Optional file prefix filter.
+ * @returns A promise resolving to an array of absolute file paths.
+ * @throws {Error} If the root directory cannot be accessed or is not a directory.
+ */
+export async function getTargetFiles(rootDir: string, filePrefix: string = ""): Promise<string[]> {
+    console.log(`${logPrefix} Searching for target files in root: ${rootDir}${filePrefix ? `, prefix: '${filePrefix}'` : ''}`);
+    let absRoot: string;
+    try {
+        absRoot = path.resolve(rootDir);
+        const stats = await fs.stat(absRoot);
+        if (!stats.isDirectory()) {
+            throw new Error(`Target path is not a directory: ${rootDir}`);
+        }
+        await fs.access(absRoot);
+    } catch (error) {
+        console.error(`${logPrefix} Error accessing target directory: ${rootDir}`);
+        throw new Error(`${logPrefix} failed: Cannot access target directory '${rootDir}'. ${error instanceof Error ? error.message : ''}`);
+    }
+
+    // Get all file paths recursively, passing exclusion config.
+    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES);
+    console.log(`${logPrefix} Found ${allFiles.length} potential files in directory tree.`);
+
+    const targetFiles = allFiles.filter(filePath => {
+        const fileName = path.basename(filePath);
+        const passesPrefix = !filePrefix || fileName.startsWith(filePrefix);
+        const passesExtension = INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase());
+        // Log filtering decision (optional, can be verbose)
+        // if (passesPrefix && passesExtension) {
+        //     console.log(`${logPrefix} - Including: ${fileName}`);
+        // } else {
+        //     console.log(`${logPrefix} - Excluding: ${fileName} (Prefix: ${passesPrefix}, Ext: ${passesExtension})`);
+        // }
+        return passesPrefix && passesExtension;
+    });
+
+    console.log(`${logPrefix} Found ${targetFiles.length} target files matching criteria.`);
+    return targetFiles;
+}
+
+/**
+ * Consolidates source files from a directory into a single string.
+ * @param rootDir The root directory to scan.
+ * @param filePrefix Optional file prefix filter.
+ * @returns A promise resolving to the consolidated source code string, including a header.
+ * @throws {Error} If the root directory cannot be accessed.
+ */
+export async function getConsolidatedSources(rootDir: string, filePrefix: string = ""): Promise<string> {
+    console.log(`${logPrefix} Starting consolidation for root: ${rootDir}${filePrefix ? `, prefix: '${filePrefix}'` : ''}`);
+
+    const seenFiles: Set<string> = new Set();
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+    let absRoot: string;
+    try {
+        absRoot = path.resolve(rootDir); // Resolve relative to current working directory
+        await fs.access(absRoot); // Check if directory exists and is accessible
+    } catch (error) {
+        console.error(`${logPrefix} Error accessing root directory: ${rootDir}`);
+        throw new Error(`${logPrefix} failed: Cannot access root directory '${rootDir}'. ${error instanceof Error ? error.message : ''}`);
+    }
+
+
+    // Build the header.
+    const header = `// Consolidated sources from: ${absRoot}\n` +
+        `// Consolidation timestamp: ${now}\n` +
+        `// Tool Name: gemini-poc (inspector module)\n` +
+        `// Root Directory: ${absRoot}\n` +
+        `// Include Extensions: ${[...INCLUDE_EXTENSIONS].sort().join(", ")}\n` +
+        `// Exclude Patterns/Files: ${[...EXCLUDE_PATTERNS, ...EXCLUDE_FILENAMES].sort().join(", ")}\n\n`;
+
+    let outputContent = header;
+
+    // Get all file paths recursively, passing exclusion config.
+    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES);
+    console.log(`${logPrefix} Found ${allFiles.length} potential files.`);
+
+    for (const filePath of allFiles) {
+        const fileName = path.basename(filePath);
+
+        // Apply file prefix filter if provided.
+        if (filePrefix && !fileName.startsWith(filePrefix)) {
+            continue;
+        }
+
+        // Skip files with unsupported extension (redundant check, but safe)
+        if (!INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase())) {
+            continue;
+        }
+
+        let canonicalPath: string;
+        try {
+            canonicalPath = await fs.realpath(filePath); // Resolve symlinks
+        } catch (realpathError) {
+            console.warn(`${logPrefix} Warning: Could not get real path for ${filePath}. Skipping. Error: ${realpathError instanceof Error ? realpathError.message : realpathError}`);
+            continue;
+        }
+
+        if (seenFiles.has(canonicalPath)) {
+            // console.log(`  ${logPrefix} Skipping already seen file: ${canonicalPath}`);
+            continue; // Skip already processed files
+        }
+        seenFiles.add(canonicalPath);
+
+        // Compute relative and friendly path.
+        const relativePath = path.relative(absRoot, canonicalPath);
+        const friendlyPath = relativePath.split(path.sep).join("/"); // Normalize path separators
+        const commentLine = `// File: ${friendlyPath}`;
+        console.log(`  ${logPrefix} Processing: ${friendlyPath}`);
+
+
+        // Read file content.
+        let fileData: string;
+        let lines: string[];
+        try {
+            fileData = await fs.readFile(canonicalPath, "utf-8");
+            lines = fileData.split(/\r?\n/);
+        } catch (error) {
+            console.warn(`  ${logPrefix} Warning: Error reading ${friendlyPath}. Skipping. Error: ${error instanceof Error ? error.message : error}`);
+            continue;
+        }
+
+        // Filter lines (remove preamble, duplicates)
+        const filtered = filterLines(lines, friendlyPath);
+
+        // Add content only if there's something left after filtering
+        // Add empty files too if they aren't just whitespace
+        if (filtered.length > 0 || fileData.trim() !== '') {
+            outputContent += `${commentLine}\n\n`;
+            outputContent += filtered.join("\n") + "\n\n";
+        } else {
+            console.log(`  ${logPrefix} Skipping empty or fully filtered file: ${friendlyPath}`);
+        }
+    } // End for loop
+
+    console.log(`${logPrefix} Consolidation complete. Total length: ${outputContent.length} characters.`);
+    return outputContent;
+}
+
+// File: src/shared/helpers/sync-io.helper.ts
+
+// File: src/shared/utils/file-io.utils.ts // Consolidated
+
+import * as fs from 'fs';
+import * as path from 'path';
+
+const logPrefix = "[FileIO]"; // Standardized log prefix
+
+/**
+ * Reads the content of a single code file synchronously.
+ * @param filePath The absolute path to the code file.
+ * @returns The code content as a string.
+ * @throws An error if the file cannot be read or is not a file.
+ */
+export function readSingleFile(filePath: string): string {
+    const relativeFilePath = path.relative(process.cwd(), filePath).split(path.sep).join('/');
+    try {
+        const stats = fs.statSync(filePath);
+        if (!stats.isFile()) {
+            throw new Error(`Target path is not a file: ${relativeFilePath}`);
+        }
+        const content = fs.readFileSync(filePath, 'utf8');
+        console.log(`${logPrefix} Read ${content.length} chars from ${relativeFilePath}.`); // Optional: log success
+        return content;
+    } catch (readError) {
+        console.error(`${logPrefix} ❌ Error reading file ${relativeFilePath}: ${readError instanceof Error ? readError.message : readError}`);
+        throw readError; // Re-throw after logging
+    }
+
+/**
+ * Updates the content of a code file synchronously. Creates parent directory if needed.
+ * @param filePath The absolute path to the code file.
+ * @param newContent The new code content to write to the file.
+ * @returns True if the file was updated successfully, false otherwise.
+ */
+export function updateFileContent(filePath: string, newContent: string): boolean {
+    const relativeFilePath = path.relative(process.cwd(), filePath).split(path.sep).join('/');
+    console.warn(`${logPrefix} ⚠️ Attempting to overwrite ${relativeFilePath}...`); // Keep warning
+    try {
+        const outputDir = path.dirname(filePath);
+        // Ensure directory exists (moved from writeOutputFile as it's needed here too)
+        if (!fs.existsSync(outputDir)) {
+            // recursive: true creates parent directories if they don't exist
+            fs.mkdirSync(outputDir, { recursive: true });
+            console.log(`${logPrefix} Created directory: ${path.relative(process.cwd(), outputDir)}`);
+        }
+        fs.writeFileSync(filePath, newContent, 'utf8');
+        console.log(`${logPrefix} ✅ Successfully updated ${relativeFilePath}.`);
+        return true;
+    } catch (writeError) {
+        console.error(`${logPrefix} ❌ Error writing file ${relativeFilePath}: ${writeError instanceof Error ? writeError.message : writeError}`);
+        return false;
+    }
+
+/**
+ * Writes content to a specified output file. Creates parent directory if needed.
+ * @param outputFilePath The absolute path for the output file.
+ * @param content The content string to write.
+ * @returns True if writing was successful, false otherwise.
+ */
+export function writeOutputFile(outputFilePath: string, content: string): boolean {
+    const relativeOutputPath = path.relative(process.cwd(), outputFilePath).split(path.sep).join('/');
+    console.log(`${logPrefix} Writing output to ${relativeOutputPath}...`);
+    try {
+        const outputDir = path.dirname(outputFilePath);
+        // Ensure directory exists
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+            console.log(`${logPrefix} Created directory: ${path.relative(process.cwd(), outputDir)}`);
+        }
+        fs.writeFileSync(outputFilePath, content, 'utf8');
+        console.log(`${logPrefix} ✅ Successfully wrote ${content.length} characters to ${relativeOutputPath}.`);
+        return true;
+    } catch (writeError) {
+        console.error(`${logPrefix} ❌ Error writing output file ${relativeOutputPath}: ${writeError instanceof Error ? writeError.message : writeError}`);
+        return false;
+    }
+
+// File: src/shared/helpers/type-inference.helper.ts
+
+/**
+ * Recursively determines the TypeScript type of a given value.
+ * Handles primitive types, arrays, objects, functions, Date instances, and potential date strings.
+ *
+ * @param {any} value - The value whose type is to be determined.
+ * @returns {string} - A string representing the TypeScript type of the given value.
+ * @warning The detection of date strings using regex is a heuristic and may misclassify
+ *          strings that coincidentally match the ISO 8601 format.
+ * @warning This function does not handle circular references in objects. Processing data
+ *          with circular references will likely result in a 'Maximum call stack size exceeded' error.
+ */
+function getType(value: any): string {
+    if (value === null) {
+        return "null";
+    } else if (value === undefined) {
+        // Represent undefined explicitly, although less common in JSON
+        return "undefined";
+    } else if (typeof value === "function") {
+        // Functions aren't typical in data structures like JSON, but handle for completeness
+        return "Function";
+    } else if (Array.isArray(value)) {
+        if (value.length === 0) {
+            return "Array<any>"; // Or perhaps "unknown[]" or "any[]" based on preference
+        }
+        // Infer type from elements, handling potentially mixed types
+        const uniqueTypes = new Set(value.map((item) => getType(item)));
+        // Sort for consistent output if multiple types are present
+        return `Array<${Array.from(uniqueTypes).sort().join(" | ")}>`;
+    } else if (value instanceof Date) {
+        return "Date";
+    } else if (typeof value === "string") {
+        // Basic check for ISO 8601 Date string format (heuristic)
+        // Note: This is a simple heuristic and might misclassify strings that coincidentally match
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(value)) {
+            return "Date"; // Suggest Date if it looks like an ISO string
+        }
+        return "string";
+    } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+        // Ensure it's a plain object, not null or an array
+        // Potential stack overflow here if obj has circular references
+        return getInterface(value);
+    }
+    // Fallback for primitive types like number, boolean, bigint, symbol
+    return typeof value;
+}
+
+/**
+ * Constructs a TypeScript interface representation (as a string) for a given object.
+ * This function recursively calls getType to handle nested structures.
+ *
+ * @param {object} obj - The object to convert into a TypeScript interface string.
+ * @returns {string} - A formatted string representing the TypeScript type interface of the object.
+ * @warning This function does not handle circular references. If 'obj' contains circular
+ *          references, this may lead to infinite recursion and stack overflow.
+ */
+function getInterface(obj: object): string {
+    const properties = Object.entries(obj).map(
+        // Recursively get type for each property value
+        ([key, val]) => `  ${key}: ${getType(val)};` // Indent properties // Recursive call
+    );
+    // Sort properties alphabetically for consistent output
+    properties.sort();
+    // Format as an inline object type definition
+    return `{\n${properties.join("\n")}\n}`;
+}
+
+/**
+ * Infers TypeScript interface definitions from sample data (e.g., parsed JSON).
+ * Handles single objects or arrays of objects, merging properties and types found across all items.
+ *
+ * @param {string} interfaceName - The desired name for the root TypeScript interface.
+ * @param {any} data - The sample data (object or array of objects) to analyze.
+ *                     It's assumed this data is JSON-like (no functions, Maps, Sets, etc. handled specifically).
+ * @returns {string} - A formatted string representing the generated TypeScript interface.
+ * @throws {Error} If the input data is not a single object or an array of objects.
+ * @note This service is primarily designed for JSON data. Support for other formats like YAML
+ *       would require adding specific parsers.
+ * @warning Does not handle circular references within the data structure.
+ * @warning Date string detection is based on a simple regex heuristic.
+ */
+export function inferTypesFromData(interfaceName: string, data: any): string {
+    // Validate input data structure
+    const isObject = typeof data === 'object' && data !== null && !Array.isArray(data);
+    const isArrayOfObjects = Array.isArray(data) && data.every(item => typeof item === 'object' && item !== null);
+
+    if (!isObject && !isArrayOfObjects) {
+        throw new Error("Invalid input data: Must be a single object or an array of objects.");
+    }
+    if (Array.isArray(data) && data.length === 0) {
+        console.warn("[Inference] Input data is an empty array. Generating an empty interface.");
+        return `interface ${interfaceName} {}\n`;
+    }
+
+
+    // Normalize data to always be an array for consistent processing
+    const normalizedData = Array.isArray(data) ? data : [data];
+    // Use a Map to store types for each key, preserving insertion order for keys if needed later,
+    // but sorting keys alphabetically before output for consistency.
+    const typeDefinitions: Map<string, Set<string>> = new Map();
+
+    // Iterate through each item in the normalized data array
+    normalizedData.forEach((item) => {
+        // Ensure item is a valid object before processing its entries
+        if (typeof item === 'object' && item !== null) {
+            // Iterate through each key-value pair in the object
+            Object.entries(item).forEach(([key, value]) => {
+                const valueType = getType(value); // Infer type of the value
+                // Initialize the Set for this key if it doesn't exist yet
+                if (!typeDefinitions.has(key)) {
+                    typeDefinitions.set(key, new Set());
+                }
+                // Add the inferred type to the Set for this key
+                typeDefinitions.get(key)?.add(valueType);
+            });
+        } else {
+            console.warn("[Inference] Skipping non-object item in array:", item);
+        }
+    });
+
+    // Construct the interface string lines
+    const lines: string[] = [`interface ${interfaceName} {`];
+    // Get keys and sort them alphabetically for consistent interface property order
+    const sortedKeys = Array.from(typeDefinitions.keys()).sort();
+
+    // Add each property definition to the interface lines
+    sortedKeys.forEach((key) => {
+        const typesSet = typeDefinitions.get(key);
+        if (typesSet) {
+            // Get unique types, sort them, and join with " | " for union types
+            const types = Array.from(typesSet).sort().join(" | ");
+            lines.push(`  ${key}: ${types};`); // Add indented property line
+        }
+    });
+
+    lines.push("}"); // Closing brace for the interface
+    return lines.join("\n"); // Join lines into a single string
+}
+
+// File: src/shared/index.ts
+
+// Constants
+export * from './constants/filesystem.constants.js';
+
+// Types
+export * from './types/app.type.js';
+export * from './types/enhancement.type.js';
+
+// Helpers
+export * from './helpers/sync-io.helper.js';
+export * from './helpers/file-scanner.helper.js';
+export * from './helpers/source-aggregator.helper.js';
+
+// File: src/shared/types/app.type.ts
+
+import { EnhancementType } from './enhancement.type.js';
+
+export interface AppArguments {
+    command: EnhancementType;
+    targetPath: string;
+    prefix?: string;
+    interfaceName?: string;
+    [key: string]: unknown;
+    _: (string | number)[];
+    $0: string;
+}
+
+export interface FileProcessingResult {
+    filePath: string;
+    status: 'updated' | 'unchanged' | 'error' | 'processed';
+    message?: string;
+}
+
+// File: src/shared/types/enhancement.type.ts
+
+export enum EnhancementType {
+	AddComments = 'AddComments',
+	Analyze = 'Analyze',
+	Explain = 'Explain',
+	AddPathComment = 'AddPathComment',
+	Consolidate = 'Consolidate',
+	SuggestImprovements = 'SuggestImprovements',
+	GenerateDocs = 'GenerateDocs',
+	InferFromData = 'InferFromData',
+	// Add more types here later
+}
+
+export function isValidEnhancementType(value: string): value is EnhancementType {
+	return Object.values(EnhancementType).includes(value as EnhancementType);
+}
+
+// File: tsconfig.json
+
+{
+  "compilerOptions": {
+    "module": "NodeNext", // Specify ESM output compatible with Node.js
+    "moduleResolution": "NodeNext", // Use Node's modern module resolution
+    "target": "ES2020", // Or newer (ES2020 supports top-level await used in main)
+    "outDir": "./dist", // Your existing output directory
+    "rootDir": "./src", // Your existing source directory
+    "esModuleInterop": true, // Usually helpful for CJS/ESM interop
+    "forceConsistentCasingInFileNames": true,
+    "strict": true, // Recommended
+    "skipLibCheck": true // Often needed for smoother builds
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
+}
+
+
