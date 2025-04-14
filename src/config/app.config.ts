@@ -1,10 +1,15 @@
-// File: src/config.ts
-
-// src/config.ts
+// src/config/app.config.ts
 
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+// Handle ESM paths for dotenv
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Load .env from project root (assuming config is in src/config)
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
 
 // --- Required API Key ---
 /**
@@ -40,6 +45,7 @@ export const GEMINI_API_ENDPOINT = `${GEMINI_API_BASE}/${GEMINI_MODEL_NAME}:gene
 
 
 // --- Log Loaded Configuration ---
+// Moved logging to where config is first imported (e.g., gemini.service) to avoid top-level side effects
 console.log("Configuration loaded.");
 console.log(` > Using Gemini Model: ${GEMINI_MODEL_NAME}`);
 console.log(` > Gemini Endpoint: ${GEMINI_API_ENDPOINT}`);

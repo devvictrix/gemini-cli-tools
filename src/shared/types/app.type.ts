@@ -1,19 +1,21 @@
-// File: src/shared/types/app.type.ts
+// src/shared/types/app.type.ts
 
-import { EnhancementType } from './enhancement.type.js';
+import { EnhancementType } from '../enums/enhancement.type.js'; // Use the enum from its new location
 
-export interface AppArguments {
+// Renamed AppArguments -> CliArguments for clarity
+export interface CliArguments {
     command: EnhancementType;
     targetPath: string;
     prefix?: string;
-    interfaceName?: string;
-    [key: string]: unknown;
-    _: (string | number)[];
-    $0: string;
+    interfaceName?: string; // Specific to InferFromData command
+    [key: string]: unknown; // Allow other yargs properties
+    _: (string | number)[]; // Positional args
+    $0: string;             // Script name
 }
 
+// FileProcessingResult remains relevant for summarizing operations
 export interface FileProcessingResult {
     filePath: string;
-    status: 'updated' | 'unchanged' | 'error' | 'processed';
+    status: 'updated' | 'unchanged' | 'error' | 'processed'; // 'processed' could be for non-modification tasks
     message?: string;
 }

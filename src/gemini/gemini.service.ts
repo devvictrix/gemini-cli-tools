@@ -1,12 +1,17 @@
-// File: src/gemini/gemini.service.ts
+// src/gemini/services/gemini.service.ts
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
-import { EnhancementType } from '../shared/types/enhancement.type.js';
-import { GEMINI_API_KEY, GEMINI_API_ENDPOINT } from '../config.js';
-import { extractCodeBlock } from './code.extractor.js';
+import { GEMINI_API_ENDPOINT, GEMINI_API_KEY, GEMINI_MODEL_NAME } from '../config/app.config.js';
+import { EnhancementType } from '../shared/enums/enhancement.type.js';
+import { extractCodeBlock } from './utils/code.extractor.js';
+
+// Log config when service is initialized (better than top-level in config file)
+console.log(`[GeminiService] Initialized. Model: ${GEMINI_MODEL_NAME}, Endpoint: ${GEMINI_API_ENDPOINT}`);
 
 /**
  * Represents the result of a Gemini enhancement operation.
+ * NOTE: Keeping this interface here as it's tightly coupled to the service's return type.
+ * If it needs to be shared more widely, move to shared/types.
  */
 export interface GeminiEnhancementResult {
     /** The type of content returned: 'code', 'text', or 'error'. */
@@ -15,14 +20,10 @@ export interface GeminiEnhancementResult {
     content: string | null;
 }
 
-/**
- * Generates the appropriate prompt for the Gemini API based on the desired enhancement.
- * @param enhancement The type of enhancement to perform.
- * @param code The source code to be enhanced or analyzed.
- * @returns The generated prompt string.
- */
+// --- generatePrompt function remains the same ---
 function generatePrompt(enhancement: EnhancementType, code: string): string {
-    console.log(`[Gemini] Generating prompt for enhancement type: ${enhancement}`);
+    console.log(`[GeminiService] Generating prompt for enhancement type: ${enhancement}`);
+    // ... (rest of generatePrompt code is identical to original)
     switch (enhancement) {
         case EnhancementType.AddComments:
             return `
@@ -89,48 +90,29 @@ ${code}
 
         default:
             // Should not happen if using enum correctly, but good practice
-            console.warn(`[Gemini] Unknown enhancement type for prompt generation: ${enhancement}. Using generic prompt.`);
+            console.warn(`[GeminiService] Unknown enhancement type for prompt generation: ${enhancement}. Using generic prompt.`);
             // Returns a generic prompt as a fallback
             return `Review and provide feedback on the following code:\n\n\`\`\`typescript\n${code}\n\`\`\``;
     }
 }
 
-/**
- * Calls the Gemini API with the generated prompt.
- * Handles API request/response logic and basic error handling.
- * @param promptText The complete prompt to send to the Gemini API.
- * @returns A promise resolving to the raw text response from Gemini, or null if an error occurs.
- */
+
+// --- callGeminiApi function remains the same ---
 async function callGeminiApi(promptText: string): Promise<string | null> {
-    console.log(`[Gemini] Sending request to Gemini API (${promptText.length} chars)...`);
-    // Log a preview, careful not to log sensitive info if prompts contain keys/secrets in future
-    // const preview = promptText.length > 500 ? promptText.substring(0, 500) + '...' : promptText;
-    // console.log("--- Prompt Preview ---");
-    // console.log(preview);
-    // console.log("----------------------");
+    console.log(`[GeminiService] Sending request to Gemini API (${promptText.length} chars)...`);
 
     const requestData = {
         contents: [{ parts: [{ text: promptText }] }],
         // Optional: Configure generation parameters
-        // generationConfig: {
-        //     temperature: 0.7, // Controls randomness (0=deterministic, 1=max creative)
-        //     topK: 40,       // Consider top K most likely tokens
-        //     topP: 0.95,     // Consider tokens comprising P cumulative probability
-        //     maxOutputTokens: 8192, // Max tokens in response
-        // },
-        // Optional: Safety Settings (adjust levels as needed)
-        // safetySettings: [
-        //     { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-        //     { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-        //     { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-        //     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-        // ]
+        // generationConfig: { ... },
+        // Optional: Safety Settings
+        // safetySettings: [ ... ]
     };
 
     const config = {
         headers: { 'Content-Type': 'application/json' },
         params: { key: GEMINI_API_KEY },
-        timeout: 120000 // Increase timeout (e.g., 120 seconds) for potentially longer generation tasks
+        timeout: 120000
     };
 
     try {
@@ -140,59 +122,49 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
         const candidate = response.data?.candidates?.[0];
 
         if (candidate?.finishReason && candidate.finishReason !== "STOP") {
-            console.warn(`[Gemini] Warning: Response generation finished due to reason: ${candidate.finishReason}.`);
+            console.warn(`[GeminiService] Warning: Response generation finished due to reason: ${candidate.finishReason}.`);
             if (candidate.finishReason === "SAFETY") {
-                console.error("[Gemini] ❌ Error: Gemini blocked the response due to safety settings.");
-                // Log safety ratings if available
+                console.error("[GeminiService] ❌ Error: Gemini blocked the response due to safety settings.");
                 if (candidate.safetyRatings) {
-                    console.error("[Gemini] Safety Ratings:", JSON.stringify(candidate.safetyRatings, null, 2));
+                    console.error("[GeminiService] Safety Ratings:", JSON.stringify(candidate.safetyRatings, null, 2));
                 }
-                return null; // Indicate failure due to safety block
+                return null;
             }
-            // Other reasons might include MAX_TOKENS, RECITATION, etc.
         }
 
         const responseText = candidate?.content?.parts?.[0]?.text;
 
         if (responseText) {
-            console.log(`[Gemini] Received response (${responseText.trim().length} chars).`);
+            console.log(`[GeminiService] Received response (${responseText.trim().length} chars).`);
             return responseText.trim();
         } else {
-            console.warn("[Gemini] Warning: Received response, but no text content found in the expected location.");
-            console.log("[Gemini] Full Response Data:", JSON.stringify(response.data, null, 2));
-            return null; // Indicate unexpected structure
+            console.warn("[GeminiService] Warning: Received response, but no text content found.");
+            console.log("[GeminiService] Full Response Data:", JSON.stringify(response.data, null, 2));
+            return null;
         }
     } catch (error) {
-        console.error("[Gemini] ❌ Error calling Gemini API:");
+        console.error("[GeminiService] ❌ Error calling Gemini API:");
         const axiosError = error as AxiosError;
         if (axiosError.response) {
             console.error(`  Status: ${axiosError.response.status}`);
             console.error(`  Data: ${JSON.stringify(axiosError.response.data, null, 2)}`);
-            // Check for specific Gemini error details if available
             const geminiError = (axiosError.response.data as any)?.error;
             if (geminiError) {
                 console.error(`  Gemini Error Code: ${geminiError.code}`);
                 console.error(`  Gemini Error Message: ${geminiError.message}`);
                 console.error(`  Gemini Error Status: ${geminiError.status}`);
             }
-
         } else if (axiosError.request) {
-            console.error("  Request Error: No response received (check network, endpoint, timeout).", axiosError.code);
+            console.error("  Request Error: No response received.", axiosError.code);
         } else {
             console.error('  Setup Error Message:', axiosError.message);
         }
-        return null; // Indicate failure
+        return null;
     }
 }
 
 
-/**
- * Orchestrates the process of enhancing code or generating text via the Gemini API.
- * Determines expected output type based on action and processes the response.
- * @param enhancementType The type of enhancement/generation requested.
- * @param code The source code (or consolidated code) to process.
- * @returns A promise resolving to a GeminiEnhancementResult.
- */
+// --- enhanceCodeWithGemini function remains the same ---
 export async function enhanceCodeWithGemini(
     enhancementType: EnhancementType,
     code: string
@@ -201,10 +173,9 @@ export async function enhanceCodeWithGemini(
     // Actions expected to return code
     const expectsCode = [
         EnhancementType.AddComments,
-        // Add future code-generating actions here (e.g., Refactor, GenerateTests)
     ].includes(enhancementType);
 
-    // Actions expected to return text (analysis, explanation, docs, etc.)
+    // Actions expected to return text
     const expectsText = [
         EnhancementType.Analyze,
         EnhancementType.Explain,
@@ -212,41 +183,35 @@ export async function enhanceCodeWithGemini(
         EnhancementType.GenerateDocs,
     ].includes(enhancementType);
 
-    // Generate the appropriate prompt
     const prompt = generatePrompt(enhancementType, code);
     if (!prompt) {
         return { type: 'error', content: `Failed to generate prompt for action: ${enhancementType}` };
     }
 
-    // Call the API
     const rawResponse = await callGeminiApi(prompt);
 
-    // Handle API call failure
-    if (rawResponse === null) { // Check explicitly for null, as "" could be a valid (empty) response
+    if (rawResponse === null) {
         return { type: 'error', content: 'Failed to get a valid response from Gemini API.' };
     }
 
-    // Process response based on expected type
     if (expectsCode) {
-        console.log(`[Gemini] Processing response for ${enhancementType} (expects code)...`);
-        const extractedCode = extractCodeBlock(rawResponse);
+        console.log(`[GeminiService] Processing response for ${enhancementType} (expects code)...`);
+        const extractedCode = extractCodeBlock(rawResponse); // Use local utility
         if (extractedCode) {
-            console.log("[Gemini] Code block extracted successfully.");
+            console.log("[GeminiService] Code block extracted successfully.");
             return { type: 'code', content: extractedCode };
         } else {
-            console.warn(`[Gemini] ${enhancementType} requested, but couldn't extract a fenced code block.`);
+            console.warn(`[GeminiService] ${enhancementType} requested, but couldn't extract a fenced code block.`);
             console.log("--- Full Raw Response (for debugging code extraction) ---");
             console.log(rawResponse);
             console.log("--- End Full Raw Response ---");
             return { type: 'error', content: `Failed to extract valid code block from Gemini response for ${enhancementType}. Raw response logged.` };
         }
     } else if (expectsText) {
-        console.log(`[Gemini] Processing response for ${enhancementType} (expects text)...`);
-        // For text-based results, return the raw response directly
+        console.log(`[GeminiService] Processing response for ${enhancementType} (expects text)...`);
         return { type: 'text', content: rawResponse };
     } else {
-        // Should not happen if all Gemini-using types are covered above
-        console.error(`[Gemini] Internal Error: Unhandled enhancement type in Gemini response processing: ${enhancementType}`);
+        console.error(`[GeminiService] Internal Error: Unhandled enhancement type: ${enhancementType}`);
         return { type: 'error', content: `Unhandled enhancement type: ${enhancementType}` };
     }
 }

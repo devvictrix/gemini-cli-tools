@@ -1,20 +1,14 @@
-// File: src/shared/helpers/source-aggregator.helper.ts
-
-// File: src/shared/utils/filesystem.utils.ts // New File
+// src/shared/utils/filesystem.utils.ts
 
 import { promises as fs } from "fs";
 import * as path from "path";
-import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from '../constants/filesystem.constants.js'; // Updated import path
-import { filterLines, getAllFiles } from "../index.js";
+import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from '../constants/filesystem.constants.js'; // Correct path
+import { filterLines, getAllFiles } from "../helpers/filesystem.helper.js"; // Correct path
 
-const logPrefix = "[FileSystem]"; // Consistent logging prefix
+const logPrefix = "[FileSystemUtil]"; // Renamed prefix for clarity
 
 /**
  * Finds all relevant source files within a directory based on config.
- * @param rootDir The root directory to scan.
- * @param filePrefix Optional file prefix filter.
- * @returns A promise resolving to an array of absolute file paths.
- * @throws {Error} If the root directory cannot be accessed or is not a directory.
  */
 export async function getTargetFiles(rootDir: string, filePrefix: string = ""): Promise<string[]> {
     console.log(`${logPrefix} Searching for target files in root: ${rootDir}${filePrefix ? `, prefix: '${filePrefix}'` : ''}`);
@@ -28,23 +22,16 @@ export async function getTargetFiles(rootDir: string, filePrefix: string = ""): 
         await fs.access(absRoot);
     } catch (error) {
         console.error(`${logPrefix} Error accessing target directory: ${rootDir}`);
-        throw new Error(`${logPrefix} failed: Cannot access target directory '${rootDir}'. ${error instanceof Error ? error.message : ''}`);
+        throw new Error(`Failed: Cannot access target directory '${rootDir}'. ${error instanceof Error ? error.message : ''}`);
     }
 
-    // Get all file paths recursively, passing exclusion config.
-    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES);
+    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES); // Use helper
     console.log(`${logPrefix} Found ${allFiles.length} potential files in directory tree.`);
 
     const targetFiles = allFiles.filter(filePath => {
         const fileName = path.basename(filePath);
         const passesPrefix = !filePrefix || fileName.startsWith(filePrefix);
         const passesExtension = INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase());
-        // Log filtering decision (optional, can be verbose)
-        // if (passesPrefix && passesExtension) {
-        //     console.log(`${logPrefix} - Including: ${fileName}`);
-        // } else {
-        //     console.log(`${logPrefix} - Excluding: ${fileName} (Prefix: ${passesPrefix}, Ext: ${passesExtension})`);
-        // }
         return passesPrefix && passesExtension;
     });
 
@@ -54,10 +41,6 @@ export async function getTargetFiles(rootDir: string, filePrefix: string = ""): 
 
 /**
  * Consolidates source files from a directory into a single string.
- * @param rootDir The root directory to scan.
- * @param filePrefix Optional file prefix filter.
- * @returns A promise resolving to the consolidated source code string, including a header.
- * @throws {Error} If the root directory cannot be accessed.
  */
 export async function getConsolidatedSources(rootDir: string, filePrefix: string = ""): Promise<string> {
     console.log(`${logPrefix} Starting consolidation for root: ${rootDir}${filePrefix ? `, prefix: '${filePrefix}'` : ''}`);
@@ -66,15 +49,13 @@ export async function getConsolidatedSources(rootDir: string, filePrefix: string
     const now = new Date().toISOString().slice(0, 19).replace("T", " ");
     let absRoot: string;
     try {
-        absRoot = path.resolve(rootDir); // Resolve relative to current working directory
-        await fs.access(absRoot); // Check if directory exists and is accessible
+        absRoot = path.resolve(rootDir);
+        await fs.access(absRoot);
     } catch (error) {
         console.error(`${logPrefix} Error accessing root directory: ${rootDir}`);
-        throw new Error(`${logPrefix} failed: Cannot access root directory '${rootDir}'. ${error instanceof Error ? error.message : ''}`);
+        throw new Error(`Failed: Cannot access root directory '${rootDir}'. ${error instanceof Error ? error.message : ''}`);
     }
 
-
-    // Build the header.
     const header = `// Consolidated sources from: ${absRoot}\n` +
         `// Consolidation timestamp: ${now}\n` +
         `// Tool Name: gemini-poc (inspector module)\n` +
@@ -83,46 +64,30 @@ export async function getConsolidatedSources(rootDir: string, filePrefix: string
         `// Exclude Patterns/Files: ${[...EXCLUDE_PATTERNS, ...EXCLUDE_FILENAMES].sort().join(", ")}\n\n`;
 
     let outputContent = header;
-
-    // Get all file paths recursively, passing exclusion config.
-    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES);
+    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES); // Use helper
     console.log(`${logPrefix} Found ${allFiles.length} potential files.`);
 
     for (const filePath of allFiles) {
         const fileName = path.basename(filePath);
-
-        // Apply file prefix filter if provided.
-        if (filePrefix && !fileName.startsWith(filePrefix)) {
-            continue;
-        }
-
-        // Skip files with unsupported extension (redundant check, but safe)
-        if (!INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase())) {
-            continue;
-        }
+        if (filePrefix && !fileName.startsWith(filePrefix)) continue;
+        if (!INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase())) continue;
 
         let canonicalPath: string;
         try {
-            canonicalPath = await fs.realpath(filePath); // Resolve symlinks
+            canonicalPath = await fs.realpath(filePath);
         } catch (realpathError) {
             console.warn(`${logPrefix} Warning: Could not get real path for ${filePath}. Skipping. Error: ${realpathError instanceof Error ? realpathError.message : realpathError}`);
             continue;
         }
 
-        if (seenFiles.has(canonicalPath)) {
-            // console.log(`  ${logPrefix} Skipping already seen file: ${canonicalPath}`);
-            continue; // Skip already processed files
-        }
+        if (seenFiles.has(canonicalPath)) continue;
         seenFiles.add(canonicalPath);
 
-        // Compute relative and friendly path.
         const relativePath = path.relative(absRoot, canonicalPath);
-        const friendlyPath = relativePath.split(path.sep).join("/"); // Normalize path separators
+        const friendlyPath = relativePath.split(path.sep).join("/");
         const commentLine = `// File: ${friendlyPath}`;
         console.log(`  ${logPrefix} Processing: ${friendlyPath}`);
 
-
-        // Read file content.
         let fileData: string;
         let lines: string[];
         try {
@@ -133,18 +98,15 @@ export async function getConsolidatedSources(rootDir: string, filePrefix: string
             continue;
         }
 
-        // Filter lines (remove preamble, duplicates)
-        const filtered = filterLines(lines, friendlyPath);
+        const filtered = filterLines(lines, friendlyPath); // Use helper
 
-        // Add content only if there's something left after filtering
-        // Add empty files too if they aren't just whitespace
         if (filtered.length > 0 || fileData.trim() !== '') {
             outputContent += `${commentLine}\n\n`;
             outputContent += filtered.join("\n") + "\n\n";
         } else {
             console.log(`  ${logPrefix} Skipping empty or fully filtered file: ${friendlyPath}`);
         }
-    } // End for loop
+    }
 
     console.log(`${logPrefix} Consolidation complete. Total length: ${outputContent.length} characters.`);
     return outputContent;
