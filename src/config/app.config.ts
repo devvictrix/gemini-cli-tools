@@ -1,4 +1,4 @@
-// src/config/app.config.ts
+// File: src/config/app.config.ts
 
 import dotenv from 'dotenv';
 import path from 'path';

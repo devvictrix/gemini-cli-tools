@@ -1,4 +1,4 @@
-// src/gemini/services/gemini.service.ts
+// File: src/gemini/gemini.service.ts
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import { GEMINI_API_ENDPOINT, GEMINI_API_KEY, GEMINI_MODEL_NAME } from '../config/app.config.js';

@@ -1,4 +1,4 @@
-// src/gemini/cli/gemini.handler.ts
+// File: src/gemini/cli/gemini.handler.ts
 
 import * as fs from 'fs'; // Keep fs for statSync
 import * as path from 'path';

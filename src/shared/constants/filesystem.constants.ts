@@ -1,4 +1,4 @@
-// File: src/shared/constants/filesystem.constants.ts // New Path
+// File: src/shared/constants/filesystem.constants.ts
 
 /**
  * Set of file extensions to include during inspection.

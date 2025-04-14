@@ -1,6 +1,4 @@
-#!/usr/bin/env node
-// src/index.ts
-// Main application entry point. Delegates execution to the Gemini module's CLI.
+// File: src/index.ts
 
 import { runCli } from './gemini/cli/gemini.cli.js';
 

@@ -1,4 +1,4 @@
-// src/shared/utils/file-io.utils.ts
+// File: src/shared/utils/file-io.utils.ts
 
 import * as fs from 'fs';
 import * as path from 'path';

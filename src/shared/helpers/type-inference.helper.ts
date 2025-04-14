@@ -1,4 +1,4 @@
-// src/shared/helpers/type-inference.helper.ts
+// File: src/shared/helpers/type-inference.helper.ts
 
 /**
  * Recursively determines the TypeScript type of a given value.
