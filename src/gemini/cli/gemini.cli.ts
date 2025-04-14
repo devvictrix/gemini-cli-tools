@@ -2,7 +2,7 @@
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 // Corrected: Import the *specific types* needed, not the union directly here if only using EnhancementType
-import { CliArguments, GenerateStructureDocCliArguments } from '../../shared/types/app.type.js';
+import { CliArguments } from '../../shared/types/app.type.js';
 import { runCommandLogic } from './gemini.handler.js';
 import { EnhancementType } from '../../shared/enums/enhancement.type.js';
 
@@ -104,12 +104,11 @@ export async function runCli(processArgs: string[]): Promise<void> {
             },
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.InferFromData } as CliArguments)
         )
-
         // --- GenerateStructureDoc Command ---
         .command(
-            `${GenerateStructureDocCommandName} [targetPath]`, // Use the defined constant
+            `${EnhancementType.GenerateStructureDoc} [targetPath]`, // Use enum value
             'Generate a Markdown file representing the project directory structure.',
-            (yargsInstance) => {
+            (yargsInstance) => { // Builder defines specific options
                 return yargsInstance
                     .positional('targetPath', {
                         describe: 'Root directory to scan.',
@@ -140,10 +139,10 @@ export async function runCli(processArgs: string[]): Promise<void> {
                         default: '',
                     });
             },
-            // Use the defined constant when calling the handler
-            (argv) => runCommandLogic({ ...argv, command: GenerateStructureDocCommandName } as GenerateStructureDocCliArguments) // Use specific type assertion
+            // Pass the correct enum value to the handler
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateStructureDoc } as CliArguments) // Use unified type
         )
-
+        // --- End New Command ---
         .demandCommand(1, 'Please specify a valid command (action).')
         .strict()
         .help()
