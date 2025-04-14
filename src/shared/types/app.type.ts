@@ -1,59 +1,67 @@
-// File: src/shared/types/app.type.ts
+// src/shared/types/app.type.ts
 
 import { EnhancementType } from '../enums/enhancement.type.js'; // Use the enum from its new location
 
+// Define command names union including the new command
+export type CommandNameType = EnhancementType | 'GenerateStructureDoc';
+
 /**
- * Represents the command-line arguments passed to the application.
+ * Base interface for common CLI arguments provided by yargs.
  */
-export interface CliArguments {
-    /**
-     * The enhancement type to apply (e.g., 'add-decorator').
-     */
-    command: EnhancementType;
-    /**
-     * The target file or directory path.
-     */
-    targetPath: string;
-    /**
-     * An optional prefix to add (e.g., to class names).
-     */
-    prefix?: string;
-    /**
-     * An optional interface name (used by the 'InferFromData' command).
-     */
-    interfaceName?: string; // Specific to InferFromData command
-    /**
-     * Allows other properties to be passed from yargs.
-     */
+export interface BaseCliArguments {
     [key: string]: unknown; // Allow other yargs properties
-    /**
-     * Positional arguments passed to the script.
-     */
-    _: (string | number)[]; // Positional args
-    /**
-     * The name of the script being executed.
-     */
-    $0: string;             // Script name
+    _: (string | number)[]; // Positional args not mapped to specific options
+    $0: string;             // The script name or path as executed
 }
 
 /**
- * Represents the result of processing a single file.
+ * Arguments specific to commands that perform code enhancements (using EnhancementType).
+ */
+export interface EnhancementCliArguments extends BaseCliArguments {
+    /** The specific code enhancement action requested. */
+    command: EnhancementType;
+    /** The target file or directory path for the enhancement. */
+    targetPath: string;
+    /** Optional filename prefix filter for directory processing. */
+    prefix?: string;
+    /** Optional name for the generated interface (used by InferFromData). */
+    interfaceName?: string;
+}
+
+/**
+ * Arguments specific to the GenerateStructureDoc command.
+ */
+export interface GenerateStructureDocCliArguments extends BaseCliArguments {
+    /** The command name, fixed to 'GenerateStructureDoc'. */
+    command: 'GenerateStructureDoc';
+    /** Root directory to scan (has default value). */
+    targetPath: string;
+    /** Path for the output Markdown file (has default value). */
+    output: string;
+    /** Flag to include standard descriptions for known directories (has default value). */
+    descriptions: boolean;
+    /** Optional maximum directory depth to display. */
+    depth?: number;
+    /** Optional comma-separated list of additional names/patterns to exclude (has default value). */
+    exclude: string;
+}
+
+/**
+ * Union type representing the arguments for any valid command.
+ * Used by the command handler for type safety.
+ */
+export type CliArguments = EnhancementCliArguments | GenerateStructureDocCliArguments;
+
+
+/**
+ * Represents the result of processing a single file,
+ * often used in summarizing batch operations.
  */
 export interface FileProcessingResult {
-    /**
-     * The path to the processed file.
-     */
+    /** The relative path of the processed file. */
     filePath: string;
-    /**
-     * The status of the file processing operation.
-     *  - 'updated': The file was modified.
-     *  - 'unchanged': The file was not modified.
-     *  - 'error': An error occurred during processing.
-     *  - 'processed': The file was processed, even if no modifications were made.
-     */
-    status: 'updated' | 'unchanged' | 'error' | 'processed'; // 'processed' could be for non-modification tasks
-    /**
-     * An optional message providing more detail about the processing result.
-     */
+    /** The outcome of the processing for this file. */
+    status: 'updated' | 'unchanged' | 'error' | 'processed';
+    /** Optional message, typically used for errors or warnings. */
     message?: string;
 }

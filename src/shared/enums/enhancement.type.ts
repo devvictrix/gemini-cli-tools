@@ -1,51 +1,37 @@
-// File: src/shared/enums/enhancement.type.ts
+// src/shared/enums/enhancement.type.ts
 
 /**
- * Enum representing the different types of enhancements that can be applied to code.
+ * Enum representing the different types of code enhancement actions
+ * that can be performed, primarily using the Gemini API.
  */
 export enum EnhancementType {
-	/**
-	 * Add comments to the code.
-	 */
+	/** Add TSDoc/JSDoc and inline comments to the code. */
 	AddComments = 'AddComments',
-	/**
-	 * Analyze the code.
-	 */
+	/** Provide a high-level analysis of code structure and quality. */
 	Analyze = 'Analyze',
-	/**
-	 * Explain the code.
-	 */
+	/** Explain what the code does in simple terms. */
 	Explain = 'Explain',
-	/**
-	 * Add path comments to the code.
-	 */
+	/** Add a '// File: <relativePath>' comment header to files (Local Action). */
 	AddPathComment = 'AddPathComment',
-	/**
-	 * Consolidate the code.
-	 */
+	/** Consolidate multiple source files into a single output file (Local Action). */
 	Consolidate = 'Consolidate',
-	/**
-	 * Suggest improvements to the code.
-	 */
+	/** Suggest specific, actionable improvements for the code. */
 	SuggestImprovements = 'SuggestImprovements',
-	/**
-	 * Generate documentation for the code.
-	 */
+	/** Generate Markdown documentation (e.g., for README). */
 	GenerateDocs = 'GenerateDocs',
-	/**
-	 * Infer types or structures from provided data.
-	 */
+	/** Infer TypeScript interface from a JSON data file (Local Action). */
 	InferFromData = 'InferFromData',
-	// Add more types here later
+	// Add more enhancement types here in the future (e.g., GenerateTests, Refactor)
 }
 
 /**
- * Checks if a given string is a valid EnhancementType.
+ * Type guard function to check if a given string is a valid EnhancementType value.
+ * Useful for validating command inputs or data.
  *
- * @param value The string to check.
- * @returns True if the string is a valid EnhancementType, false otherwise.
+ * @param value The string value to check.
+ * @returns True if the value is a valid member of the EnhancementType enum, false otherwise.
  */
 export function isValidEnhancementType(value: string): value is EnhancementType {
-	// Check if the provided value exists in the EnhancementType enum values.
+	// Check if the provided value exists within the array of enum values.
 	return Object.values(EnhancementType).includes(value as EnhancementType);
 }

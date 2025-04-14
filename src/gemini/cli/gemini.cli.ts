@@ -1,15 +1,18 @@
-// File: src/gemini/cli/gemini.cli.ts
-
+// src/gemini/cli/gemini.cli.ts
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { CliArguments } from '../../shared/types/app.type.js'; // Updated path
-import { runCommandLogic } from './gemini.handler.js'; // Updated path
+// Corrected: Import the *specific types* needed, not the union directly here if only using EnhancementType
+import { CliArguments, GenerateStructureDocCliArguments } from '../../shared/types/app.type.js';
+import { runCommandLogic } from './gemini.handler.js';
 import { EnhancementType } from '../../shared/enums/enhancement.type.js';
+
+// --- DEFINE the command name constant ---
+const GenerateStructureDocCommandName = 'GenerateStructureDoc'; // Define the command name
 
 const logPrefix = "[GeminiCLI]";
 
 /**
- * Sets up common options (targetPath, prefix) for yargs commands.
+ * Sets up common options (targetPath, prefix) for yargs commands (used by EnhancementType commands).
  * @param yargsInstance The yargs instance to configure.
  * @returns The yargs instance with the added options.
  */
@@ -39,11 +42,12 @@ export async function runCli(processArgs: string[]): Promise<void> {
     console.log(`${logPrefix} Initializing...`);
 
     await yargs(hideBin(processArgs))
+        // --- EnhancementType Commands ---
         .command( // AddComments
             `${EnhancementType.AddComments} <targetPath>`,
             'Add AI-generated comments to files.',
-            setupDefaultCommand, // Use common options setup
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddComments } as CliArguments) // Run main logic with command type
+            setupDefaultCommand,
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddComments } as CliArguments)
         )
         .command( // Analyze
             `${EnhancementType.Analyze} <targetPath>`,
@@ -84,48 +88,86 @@ export async function runCli(processArgs: string[]): Promise<void> {
         .command( // InferFromData
             `${EnhancementType.InferFromData} <targetPath>`,
             'Infer TypeScript interface from a JSON data file.',
-            (yargsInstance) => { // Custom setup for this command
+            (yargsInstance) => {
                 return yargsInstance
-                    .positional('targetPath', { // Requires a file path
+                    .positional('targetPath', {
                         describe: 'Path to the JSON data file',
                         type: 'string',
                         demandOption: true,
                     })
-                    .option('interfaceName', { // Requires an interface name
+                    .option('interfaceName', {
                         alias: 'i',
                         type: 'string',
                         description: 'Name for the generated TypeScript interface',
-                        demandOption: true, // Interface name is required for this command
+                        demandOption: true,
                     });
             },
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.InferFromData } as CliArguments) // Run main logic
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.InferFromData } as CliArguments)
         )
-        .demandCommand(1, 'Please specify a valid command (action).') // Require at least one command
-        .strict() // Report errors for unknown options/commands
-        .help() // Enable --help option
-        .alias('h', 'help') // Alias -h for help
-        .wrap(null) // Adjust terminal width automatically
-        .fail((msg, err, yargs) => { // Custom failure handler
+
+        // --- GenerateStructureDoc Command ---
+        .command(
+            `${GenerateStructureDocCommandName} [targetPath]`, // Use the defined constant
+            'Generate a Markdown file representing the project directory structure.',
+            (yargsInstance) => {
+                return yargsInstance
+                    .positional('targetPath', {
+                        describe: 'Root directory to scan.',
+                        type: 'string',
+                        default: './src',
+                    })
+                    .option('output', {
+                        alias: 'o',
+                        type: 'string',
+                        description: 'Path for the output Markdown file.',
+                        default: 'Project Tree Structure.md',
+                    })
+                    .option('descriptions', {
+                        alias: 'd',
+                        type: 'boolean',
+                        description: 'Include standard descriptions for known directories.',
+                        default: false,
+                    })
+                    .option('depth', {
+                        alias: 'L',
+                        type: 'number',
+                        description: 'Maximum directory depth to display.',
+                    })
+                    .option('exclude', {
+                        alias: 'e',
+                        type: 'string',
+                        description: 'Comma-separated list of additional names/patterns to exclude.',
+                        default: '',
+                    });
+            },
+            // Use the defined constant when calling the handler
+            (argv) => runCommandLogic({ ...argv, command: GenerateStructureDocCommandName } as GenerateStructureDocCliArguments) // Use specific type assertion
+        )
+
+        .demandCommand(1, 'Please specify a valid command (action).')
+        .strict()
+        .help()
+        .alias('h', 'help')
+        .wrap(null)
+        .fail((msg, err, yargs) => {
             if (err) {
-                // Handle unexpected parsing errors
                 console.error(`\n${logPrefix} 🚨 An unexpected error occurred during argument parsing:`);
                 console.error(err);
                 process.exit(1);
             }
-            // Handle validation errors (missing command, wrong options, etc.)
             console.error(`\n${logPrefix} ❌ Error: ${msg}\n`);
-            yargs.showHelp(); // Show help message on failure
+            yargs.showHelp();
             process.exit(1);
         })
-        .parseAsync() // Parse arguments asynchronously
-        .catch(error => { // Catch errors from the async parsing or command execution if not caught internally
+        .parseAsync()
+        .catch(error => {
             console.error(`\n${logPrefix} 🚨 An unexpected critical error occurred during execution:`);
             if (error instanceof Error) {
                 console.error(`   Message: ${error.message}`);
-                console.error(error.stack); // Log stack trace for critical errors
+                console.error(error.stack);
             } else {
                 console.error("   An unknown error object was thrown:", error);
             }
-            process.exit(1); // Exit with failure code
+            process.exit(1);
         });
 }
