@@ -8,3 +8,5 @@ dist/
 build/
 coverage/
 *.log
+
+consolidated_output.txt

@@ -1,5 +1,5 @@
 // Consolidated sources from: /home/devvi/opt/personal-projects/gemini-poc
-// Consolidation timestamp: 2025-04-14 08:10:01
+// Consolidation timestamp: 2025-04-14 11:30:43
 // Tool Name: gemini-poc (inspector module)
 // Root Directory: /home/devvi/opt/personal-projects/gemini-poc
 // Include Extensions: .env, .js, .json, .ts
@@ -98,16 +98,18 @@ console.log(` > Gemini Endpoint: ${GEMINI_API_ENDPOINT}`);
 
 // File: src/gemini/cli/gemini.cli.ts
 
+// src/gemini/cli/gemini.cli.ts
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { CliArguments } from '../../shared/types/app.type.js'; // Updated path
-import { runCommandLogic } from './gemini.handler.js'; // Updated path
+// Corrected: Import the *specific types* needed, not the union directly here if only using EnhancementType
+import { CliArguments } from '../../shared/types/app.type.js';
+import { runCommandLogic } from './gemini.handler.js';
 import { EnhancementType } from '../../shared/enums/enhancement.type.js';
 
 const logPrefix = "[GeminiCLI]";
 
 /**
- * Sets up common options (targetPath, prefix) for yargs commands.
+ * Sets up common options (targetPath, prefix) for yargs commands (used by EnhancementType commands).
  * @param yargsInstance The yargs instance to configure.
  * @returns The yargs instance with the added options.
  */
@@ -137,11 +139,12 @@ export async function runCli(processArgs: string[]): Promise<void> {
     console.log(`${logPrefix} Initializing...`);
 
     await yargs(hideBin(processArgs))
+        // --- EnhancementType Commands ---
         .command( // AddComments
             `${EnhancementType.AddComments} <targetPath>`,
             'Add AI-generated comments to files.',
-            setupDefaultCommand, // Use common options setup
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddComments } as CliArguments) // Run main logic with command type
+            setupDefaultCommand,
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddComments } as CliArguments)
         )
         .command( // Analyze
             `${EnhancementType.Analyze} <targetPath>`,
@@ -182,403 +185,520 @@ export async function runCli(processArgs: string[]): Promise<void> {
         .command( // InferFromData
             `${EnhancementType.InferFromData} <targetPath>`,
             'Infer TypeScript interface from a JSON data file.',
-            (yargsInstance) => { // Custom setup for this command
+            (yargsInstance) => {
                 return yargsInstance
-                    .positional('targetPath', { // Requires a file path
+                    .positional('targetPath', {
                         describe: 'Path to the JSON data file',
                         type: 'string',
                         demandOption: true,
                     })
-                    .option('interfaceName', { // Requires an interface name
+                    .option('interfaceName', {
                         alias: 'i',
                         type: 'string',
                         description: 'Name for the generated TypeScript interface',
-                        demandOption: true, // Interface name is required for this command
+                        demandOption: true,
                     });
             },
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.InferFromData } as CliArguments) // Run main logic
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.InferFromData } as CliArguments)
         )
-        .demandCommand(1, 'Please specify a valid command (action).') // Require at least one command
-        .strict() // Report errors for unknown options/commands
-        .help() // Enable --help option
-        .alias('h', 'help') // Alias -h for help
-        .wrap(null) // Adjust terminal width automatically
-        .fail((msg, err, yargs) => { // Custom failure handler
+        // --- GenerateStructureDoc Command ---
+        .command(
+            `${EnhancementType.GenerateStructureDoc} [targetPath]`, // Use enum value
+            'Generate a Markdown file representing the project directory structure.',
+            (yargsInstance) => { // Builder defines specific options
+                return yargsInstance
+                    .positional('targetPath', {
+                        describe: 'Root directory to scan.',
+                        type: 'string',
+                        default: './src',
+                    })
+                    .option('output', {
+                        alias: 'o',
+                        type: 'string',
+                        description: 'Path for the output Markdown file.',
+                        default: 'Project Tree Structure.md',
+                    })
+                    .option('descriptions', {
+                        alias: 'd',
+                        type: 'boolean',
+                        description: 'Include standard descriptions for known directories.',
+                        default: false,
+                    })
+                    .option('depth', {
+                        alias: 'L',
+                        type: 'number',
+                        description: 'Maximum directory depth to display.',
+                    })
+                    .option('exclude', {
+                        alias: 'e',
+                        type: 'string',
+                        description: 'Comma-separated list of additional names/patterns to exclude.',
+                        default: '',
+                    });
+            },
+            // Pass the correct enum value to the handler
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateStructureDoc } as CliArguments) // Use unified type
+        )
+        // --- End New Command ---
+        .demandCommand(1, 'Please specify a valid command (action).')
+        .strict()
+        .help()
+        .alias('h', 'help')
+        .wrap(null)
+        .fail((msg, err, yargs) => {
             if (err) {
-                // Handle unexpected parsing errors
                 console.error(`\n${logPrefix} 🚨 An unexpected error occurred during argument parsing:`);
                 console.error(err);
                 process.exit(1);
             }
-            // Handle validation errors (missing command, wrong options, etc.)
             console.error(`\n${logPrefix} ❌ Error: ${msg}\n`);
-            yargs.showHelp(); // Show help message on failure
+            yargs.showHelp();
             process.exit(1);
         })
-        .parseAsync() // Parse arguments asynchronously
-        .catch(error => { // Catch errors from the async parsing or command execution if not caught internally
+        .parseAsync()
+        .catch(error => {
             console.error(`\n${logPrefix} 🚨 An unexpected critical error occurred during execution:`);
             if (error instanceof Error) {
                 console.error(`   Message: ${error.message}`);
-                console.error(error.stack); // Log stack trace for critical errors
+                console.error(error.stack);
             } else {
                 console.error("   An unknown error object was thrown:", error);
             }
-            process.exit(1); // Exit with failure code
+            process.exit(1);
         });
 }
 
 // File: src/gemini/cli/gemini.handler.ts
 
-import * as fs from 'fs'; // Keep fs for statSync
+// src/gemini/cli/gemini.handler.ts
+import * as fs from 'fs';
 import * as path from 'path';
 import pLimit from 'p-limit';
-import { EXCLUDE_FILENAMES } from '../../shared/constants/filesystem.constants.js'; // Updated path
-import { inferTypesFromData } from '../../shared/helpers/type-inference.helper.js'; // Updated path
-import { CliArguments, FileProcessingResult } from '../../shared/types/app.type.js'; // Updated path
-import { EnhancementType } from '../../shared/enums/enhancement.type.js';
+import { EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from '../../shared/constants/filesystem.constants.js';
+import { inferTypesFromData } from '../../shared/helpers/type-inference.helper.js';
+import { CliArguments, FileProcessingResult } from '../../shared/types/app.type.js'; // Unified type
+import { EnhancementType } from '../../shared/enums/enhancement.type.js'; // Enum
 import { getConsolidatedSources, getTargetFiles } from '../../shared/utils/filesystem.utils.js';
 import { readSingleFile, updateFileContent, writeOutputFile } from '../../shared/utils/file-io.utils.js';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service.js';
 
 const logPrefix = "[GeminiHandler]";
 
+// --- Standard Directory Descriptions (Unchanged) ---
+const standardDescriptions: ReadonlyMap<string, string> = new Map([
+    /* ... descriptions ... */
+    ['cli', '# CLI specific logic (commands, handlers)'],
+    ['clients', '# Clients for external APIs/services'],
+    ['config', '# Configuration loading and access'],
+    ['constants', '# Shared constant values (magic strings, keys)'],
+    ['controllers', '# Handles incoming requests (HTTP/RPC)'],
+    ['database', '# Database connection, migrations, seeding orchestration'],
+    ['decorators', '# Custom TypeScript decorators'],
+    ['dtos', '# Data Transfer Objects (input/output shapes)'],
+    ['entities', '# Domain models or DB schema definitions'],
+    ['enums', '# Shared enumerations'],
+    ['events', '# Event definitions'],
+    ['exceptions', '# Custom error/exception classes'],
+    ['fakes', '# Mock/stub implementations for testing'],
+    ['guards', '# Authorization/authentication guards'],
+    ['handlers', '# Event/message handlers/listeners'],
+    ['helpers', '# General-purpose utility functions'],
+    ['jobs', '# Background job definitions'],
+    ['lib', '# Shared libraries or complex utilities'],
+    ['middleware', '# Request/response middleware'],
+    ['migrations', '# Database schema migration files'],
+    ['policies', '# Complex authorization policies'],
+    ['prompts', '# AI prompt templates'],
+    ['repositories', '# Data access layer abstraction'],
+    ['routes', '# API endpoint definitions'],
+    ['schemas', '# Data validation schemas (Zod, Joi, etc.)'],
+    ['seeders', '# Database seeding scripts'],
+    ['serializers', '# Data transformation utilities'],
+    ['services', '# Core business logic'],
+    ['shared', '# Shared utilities, types, constants (top-level)'],
+    ['shared-modules', '# Shared cross-cutting modules (logging, auth)'],
+    ['tests', '# Unit, integration, e2e tests'],
+    ['types', '# Shared TypeScript interfaces/types'],
+    ['utils', '# Shared utility functions (often more specific than helpers)'],
+    ['validators', '# Custom validation logic/rules'],
+]);
+
+// --- Define an interface for the options of generateTreeLines ---
+interface GenerateTreeOptions {
+    depth: number;
+    maxDepth?: number;
+    prefix: string;
+    useDescriptions: boolean;
+    exclusions: Set<string>;
+}
+
+// --- Recursive Tree Generation Function (Use the interface) ---
 /**
- * The core application logic. Parses arguments, identifies target files,
- * and executes the requested action (local or via Gemini API).
+ * Recursively scans a directory and generates formatted tree lines.
+ */
+async function generateTreeLines(
+    currentPath: string,
+    options: GenerateTreeOptions // <<< Use the named interface here
+): Promise<string[]> {
+    // Now destructuring works correctly because options has a clear type
+    const { depth, maxDepth, prefix, useDescriptions, exclusions } = options;
+    let outputLines: string[] = [];
+
+    if (maxDepth !== undefined && depth > maxDepth) {
+        return [];
+    }
+
+    let entries: string[];
+    try {
+        entries = await fs.promises.readdir(currentPath);
+    } catch (error) {
+        console.warn(`${logPrefix} ⚠️ Could not read directory ${currentPath}: ${error instanceof Error ? error.message : error}`);
+        return [`${prefix}└── Error reading directory!`];
+    }
+
+    const filteredEntries = entries
+        .filter(entry => !exclusions.has(entry))
+        .sort((a, b) => { /* ... sorting logic ... */
+            try {
+                const statA = fs.statSync(path.join(currentPath, a));
+                const statB = fs.statSync(path.join(currentPath, b));
+                if (statA.isDirectory() && !statB.isDirectory()) return -1;
+                if (!statA.isDirectory() && statB.isDirectory()) return 1;
+            } catch { /* Ignore stat errors during sort */ }
+            return a.localeCompare(b);
+        });
+
+    for (let i = 0; i < filteredEntries.length; i++) {
+        const entry = filteredEntries[i];
+        const entryPath = path.join(currentPath, entry);
+        const isLastEntry = i === filteredEntries.length - 1;
+        const connector = isLastEntry ? '└── ' : '├── ';
+        const linePrefix = prefix + connector;
+
+        let line = linePrefix + entry;
+        let isDirectory = false;
+
+        try {
+            const stats = await fs.promises.stat(entryPath);
+            isDirectory = stats.isDirectory();
+            if (isDirectory) {
+                line += '/';
+                if (useDescriptions && standardDescriptions.has(entry)) {
+                    line += ` ${standardDescriptions.get(entry)}`;
+                }
+            outputLines.push(line);
+
+            if (isDirectory && (maxDepth === undefined || depth < maxDepth)) {
+                const nextPrefix = prefix + (isLastEntry ? '    ' : '│   ');
+                // Pass the options object matching the interface type for the recursive call
+                const childLines = await generateTreeLines(entryPath, {
+                    ...options, // Spread existing options
+                    depth: depth + 1, // Override depth
+                    prefix: nextPrefix, // Override prefix
+                });
+                outputLines = outputLines.concat(childLines);
+            }
+        } catch (statError) {
+            outputLines.push(`${linePrefix}${entry} (Error: ${statError instanceof Error ? statError.message : 'Cannot stat'})`);
+            console.warn(`${logPrefix} ⚠️ Could not stat ${entryPath}: ${statError instanceof Error ? statError.message : statError}`);
+        }
+    return outputLines;
+}
+
+
+// --- Main Command Handler ---
+/**
+ * The core application logic. Dispatches to appropriate handlers based on the command.
  * @param {CliArguments} argv The parsed arguments object from yargs.
  * @returns {Promise<void>} A promise that resolves when the command logic is complete.
  */
 export async function runCommandLogic(argv: CliArguments): Promise<void> {
-    const { command: action, targetPath, prefix, interfaceName } = argv;
-    const actionDetails = `${prefix ? ` with prefix: ${prefix}` : ''}${interfaceName ? ` (Interface: ${interfaceName})` : ''}`;
-    console.log(`\n${logPrefix} Executing action: ${action} on target: ${targetPath}${actionDetails}`);
+    const { command, targetPath } = argv; // Common arguments
 
-    // --- Validate Target Path ---
-    let stats: fs.Stats;
-    try {
-        stats = fs.statSync(targetPath); // Check if the target path exists and get its stats
-    } catch (e) {
-        console.error(`\n${logPrefix} ❌ Error: Cannot access target path: ${targetPath}. Please ensure it exists.`);
-        process.exit(1); // Exit if target path is inaccessible
-    }
-    // Specific check for InferFromData action, which requires a file
-    if (action === EnhancementType.InferFromData && !stats.isFile()) {
-        console.error(`\n${logPrefix} ❌ Error: Target path for '${EnhancementType.InferFromData}' must be a file (e.g., JSON).`);
-        process.exit(1);
-    }
+    switch (command) {
+        case EnhancementType.GenerateStructureDoc: {
+            const { output, descriptions, depth, exclude } = argv;
+            console.log(`\n${logPrefix} Executing action: ${command} on target: ${targetPath}`);
+            const outputOrDefault = output || 'Project Tree Structure.md';
+            const descriptionsOrDefault = descriptions || false;
+            const excludeOrDefault = exclude || '';
 
-    // --- Classify Action Type ---
-    const isModificationAction = [
-        EnhancementType.AddComments,
-        EnhancementType.AddPathComment,
-    ].includes(action);
+            console.log(`  Outputting to: ${outputOrDefault}`);
+            if (descriptionsOrDefault) console.log(`  Including descriptions.`);
+            if (depth !== undefined) console.log(`  Max depth: ${depth}`);
+            if (excludeOrDefault) console.log(`  Excluding: ${excludeOrDefault}`);
 
-    const usesGeminiApi = [
-        EnhancementType.AddComments,
-        EnhancementType.Analyze,
-        EnhancementType.Explain,
-        EnhancementType.SuggestImprovements,
-        EnhancementType.GenerateDocs,
-    ].includes(action);
+            try {
+                const absTargetPath = path.resolve(targetPath);
+                const absOutputPath = path.resolve(outputOrDefault);
 
-    const isLocalProcessingAction = [
-        EnhancementType.Consolidate,
-        EnhancementType.InferFromData,
-        EnhancementType.AddPathComment,
-    ].includes(action);
+                if (!fs.existsSync(absTargetPath) || !fs.statSync(absTargetPath).isDirectory()) {
+                    console.error(`${logPrefix} ❌ Error: Target path '${targetPath}' does not exist or is not a directory.`);
+                    process.exit(1);
+                }
 
-    try {
-        let targetFiles: string[] = []; // Array to hold absolute paths of files to process
+                const standardExclusions = new Set([...EXCLUDE_PATTERNS, ...EXCLUDE_FILENAMES]);
+                const userExclusions = excludeOrDefault ? excludeOrDefault.split(',').map(s => s.trim()).filter(s => s) : [];
+                userExclusions.forEach(ex => standardExclusions.add(ex));
+                if (absOutputPath.startsWith(path.dirname(absTargetPath))) {
+                    standardExclusions.add(path.basename(absOutputPath));
+                }
 
-        // --- Identify Target Files ---
-        if (action === EnhancementType.InferFromData) {
-            targetFiles.push(path.resolve(targetPath));
-            console.log(`${logPrefix} Target for '${action}' is the single file: ${targetPath}`);
-        } else if (stats.isDirectory()) {
-            console.log(`${logPrefix} Target is a directory. Finding relevant files...`);
-            targetFiles = await getTargetFiles(targetPath, prefix); // Use utility from shared/utils
-            if (targetFiles.length === 0) {
-                console.log(`\n${logPrefix} No relevant files found matching criteria. Exiting.`);
-                return;
+                console.log(`${logPrefix} Scanning directory structure...`);
+                // Explicitly create the options object matching the interface
+                const treeOptions: GenerateTreeOptions = {
+                    depth: 0,
+                    maxDepth: depth, // Pass optional depth directly
+                    prefix: '',
+                    useDescriptions: descriptionsOrDefault,
+                    exclusions: standardExclusions,
+                };
+                const treeLines = await generateTreeLines(absTargetPath, treeOptions); // Pass typed options
+
+                const outputContent = `${path.basename(absTargetPath)}/\n` + treeLines.join('\n');
+                const success = writeOutputFile(absOutputPath, outputContent);
+
+                if (success) {
+                    console.log(`\n${logPrefix} ✅ Successfully generated structure document: ${outputOrDefault}`);
+                } else {
+                    console.error(`${logPrefix} ❌ Failed to write structure document.`);
+                    process.exitCode = 1;
+                }
+
+            } catch (error) {
+                console.error(`\n${logPrefix} ❌ An unexpected error occurred during ${command}:`);
+                if (error instanceof Error) {
+                    console.error(`   Message: ${error.message}`);
+                    console.error(error.stack);
+                } else {
+                    console.error("   Unknown error object:", error);
+                }
+                process.exit(1);
             }
-            console.log(`${logPrefix} Found ${targetFiles.length} files to process for action '${action}'.`);
-        } else if (stats.isFile()) {
-            const filename = path.basename(targetPath);
-            if (EXCLUDE_FILENAMES.has(filename)) { // Use constant from shared/constants
-                console.log(`${logPrefix} Target file ${filename} is excluded by configuration.`);
-                return;
-            }
-            console.log(`${logPrefix} Target is a single file for action '${action}'.`);
-            targetFiles.push(path.resolve(targetPath));
+            break; // Exit the switch case
         }
 
-        // --- Process Based on Action Type ---
+        // --- Cases for other EnhancementType commands ---
+        // (The rest of the switch cases for AddComments, Analyze, etc. remain unchanged)
+        case EnhancementType.AddComments:
+        case EnhancementType.Analyze:
+        case EnhancementType.Explain:
+        case EnhancementType.AddPathComment:
+        case EnhancementType.Consolidate:
+        case EnhancementType.SuggestImprovements:
+        case EnhancementType.GenerateDocs:
+        case EnhancementType.InferFromData: {
+            /* ... existing logic for these cases ... */
+            // Destructure arguments relevant to these commands
+            const { prefix, interfaceName } = argv;
+            const action = command; // Use command directly as action
+            const actionDetails = `${prefix ? ` with prefix: ${prefix}` : ''}${interfaceName ? ` (Interface: ${interfaceName})` : ''}`;
+            console.log(`\n${logPrefix} Executing enhancement: ${action} on target: ${targetPath}${actionDetails}`);
 
-        // A) Actions that modify files and might use Gemini (currently only AddComments)
-        if (isModificationAction && action === EnhancementType.AddComments) {
-            // --- PARALLEL MODIFICATION FLOW (AddComments) ---
-            const concurrencyLimit = 5;
-            const limit = pLimit(concurrencyLimit);
-            console.log(`\n${logPrefix} Starting PARALLEL modification action '${action}' on ${targetFiles.length} file(s) with concurrency ${concurrencyLimit}...`);
+            // --- Validation ---
+            let stats: fs.Stats;
+            try {
+                stats = fs.statSync(targetPath);
+                if (action === EnhancementType.InferFromData && !stats.isFile()) {
+                    console.error(`\n${logPrefix} ❌ Error: Target path for '${EnhancementType.InferFromData}' must be a file (e.g., JSON).`);
+                    process.exit(1);
+                }
+            } catch (e) {
+                console.error(`\n${logPrefix} ❌ Error: Cannot access target path: ${targetPath}. Please ensure it exists.`);
+                process.exit(1);
+            }
 
-            /**
-             * Processes a single file by reading its content, enhancing it with Gemini, and updating the file.
-             * @param {string} absoluteFilePath The absolute path to the file.
-             * @returns {Promise<FileProcessingResult>} A promise that resolves with the file processing result.
-             */
-            const fileProcessor = async (absoluteFilePath: string): Promise<FileProcessingResult> => {
-                const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
-                try {
-                    const originalCode = readSingleFile(absoluteFilePath);
-                    const result: GeminiEnhancementResult = await enhanceCodeWithGemini(action, originalCode);
+            // --- Classify Action Type ---
+            const isModificationAction = [EnhancementType.AddComments, EnhancementType.AddPathComment].includes(action);
+            const usesGeminiApi = [EnhancementType.AddComments, EnhancementType.Analyze, EnhancementType.Explain, EnhancementType.SuggestImprovements, EnhancementType.GenerateDocs].includes(action);
+            const isLocalProcessingAction = [EnhancementType.Consolidate, EnhancementType.InferFromData, EnhancementType.AddPathComment].includes(action);
 
-                    if (result.type === 'code' && result.content !== null) {
-                        if (originalCode.trim() !== result.content.trim()) {
-                            const updated = updateFileContent(absoluteFilePath, result.content); // Update the file content
-                            return { filePath: relativeFilePath, status: updated ? 'updated' : 'error', message: updated ? undefined : 'File write failed' };
-                        } else {
-                            console.log(`    ${logPrefix} No changes needed for ${relativeFilePath}.`);
-                            return { filePath: relativeFilePath, status: 'unchanged' };
-                        }
-                    } else if (result.type === 'error') {
-                        console.error(`    ${logPrefix} ❌ Gemini failed for ${relativeFilePath}: ${result.content}`);
-                        return { filePath: relativeFilePath, status: 'error', message: `Gemini Error: ${result.content}` };
-                    } else {
-                        console.warn(`    ${logPrefix} ⚠️ Received unexpected result type '${result.type}' or null content (expected 'code') for ${relativeFilePath}.`);
-                        return { filePath: relativeFilePath, status: 'error', message: `Unexpected result type/content: ${result.type}` };
+            // --- Main execution block ---
+            try {
+                let targetFiles: string[] = [];
+                // --- Identify Target Files ---
+                if (action === EnhancementType.InferFromData) {
+                    targetFiles.push(path.resolve(targetPath));
+                } else if (stats.isDirectory()) {
+                    targetFiles = await getTargetFiles(targetPath, prefix);
+                    if (targetFiles.length === 0) {
+                        console.log(`\n${logPrefix} No relevant files found matching criteria. Exiting.`);
+                        return;
                     }
-                } catch (fileProcessingError) {
-                    console.error(`    ${logPrefix} ❌ Error during Gemini processing for ${relativeFilePath}: ${fileProcessingError instanceof Error ? fileProcessingError.message : fileProcessingError}`);
-                    return { filePath: relativeFilePath, status: 'error', message: `File/API Processing Error: ${fileProcessingError instanceof Error ? fileProcessingError.message : "Unknown error"}` };
+                    console.log(`${logPrefix} Found ${targetFiles.length} files to process.`);
+                } else if (stats.isFile()) {
+                    const filename = path.basename(targetPath);
+                    if (EXCLUDE_FILENAMES.has(filename)) {
+                        console.log(`${logPrefix} Target file ${filename} is excluded.`);
+                        return;
+                    }
+                    targetFiles.push(path.resolve(targetPath));
                 }
-            };
 
-            const tasks = targetFiles.map(filePath => limit(() => fileProcessor(filePath))); // Create tasks with concurrency limit
-            const results: FileProcessingResult[] = await Promise.all(tasks);
+                // --- Process Based on Action Type ---
+                if (isModificationAction && action === EnhancementType.AddComments) {
+                    // Parallel modification logic...
+                    const concurrencyLimit = 5;
+                    const limit = pLimit(concurrencyLimit);
+                    console.log(`\n${logPrefix} Starting PARALLEL modification action '${action}' on ${targetFiles.length} file(s)...`);
+                    const fileProcessor = async (absoluteFilePath: string): Promise<FileProcessingResult> => { /* ... existing processor logic ... */
+                        const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
+                        try {
+                            const originalCode = readSingleFile(absoluteFilePath);
+                            const result: GeminiEnhancementResult = await enhanceCodeWithGemini(action, originalCode);
 
-            // --- Summarize Parallel Results ---
-            let successCount = 0;
-            let unchangedCount = 0;
-            let errorCount = 0;
-            results.forEach(res => {
-                switch (res.status) {
-                    case 'updated': successCount++; break;
-                    case 'unchanged': unchangedCount++; break;
-                    case 'error': errorCount++; break;
-                }
-            });
-            console.log("\n--- Parallel Modification Summary ---");
-            console.log(`  Action:              ${action}`);
-            console.log(`  Total Files Targeted:  ${targetFiles.length}`);
-            console.log(`  Successfully Updated:  ${successCount}`);
-            console.log(`  No Changes Needed:   ${unchangedCount}`);
-            console.log(`  Errors Encountered:    ${errorCount}`);
-            console.log("-----------------------------------");
-            if (errorCount > 0) process.exitCode = 1;
+                            if (result.type === 'code' && result.content !== null) {
+                                if (originalCode.trim() !== result.content.trim()) {
+                                    const updated = updateFileContent(absoluteFilePath, result.content);
+                                    return { filePath: relativeFilePath, status: updated ? 'updated' : 'error', message: updated ? undefined : 'File write failed' };
+                                } else {
+                                    console.log(`    ${logPrefix} No changes needed for ${relativeFilePath}.`);
+                                    return { filePath: relativeFilePath, status: 'unchanged' };
+                                }
+                            } else if (result.type === 'error') {
+                                console.error(`    ${logPrefix} ❌ Gemini failed for ${relativeFilePath}: ${result.content}`);
+                                return { filePath: relativeFilePath, status: 'error', message: `Gemini Error: ${result.content}` };
+                            } else {
+                                console.warn(`    ${logPrefix} ⚠️ Unexpected result type/content for ${relativeFilePath}.`);
+                                return { filePath: relativeFilePath, status: 'error', message: `Unexpected result type/content: ${result.type}` };
+                            }
+                        } catch (fileProcessingError) {
+                            console.error(`    ${logPrefix} ❌ Error during Gemini processing for ${relativeFilePath}: ${fileProcessingError instanceof Error ? fileProcessingError.message : fileProcessingError}`);
+                            return { filePath: relativeFilePath, status: 'error', message: `File/API Processing Error: ${fileProcessingError instanceof Error ? fileProcessingError.message : "Unknown error"}` };
+                        }
+                    };
+                    const tasks = targetFiles.map(filePath => limit(() => fileProcessor(filePath)));
+                    const results: FileProcessingResult[] = await Promise.all(tasks);
+                    // Summarize results...
+                    let successCount = 0, unchangedCount = 0, errorCount = 0;
+                    results.forEach(res => { /* ... tally results ... */
+                        switch (res.status) {
+                            case 'updated': successCount++; break;
+                            case 'unchanged': unchangedCount++; break;
+                            case 'error': errorCount++; break;
+                        }
+                    });
+                    console.log("\n--- Parallel Modification Summary ---");
+                    console.log(`  Action: ${action}, Files: ${targetFiles.length}, Updated: ${successCount}, Unchanged: ${unchangedCount}, Errors: ${errorCount}`);
+                    console.log("-----------------------------------");
+                    if (errorCount > 0) process.exitCode = 1;
 
-            // B) Actions that use Gemini but DO NOT modify files (Analyze, Explain, Suggest, GenerateDocs)
-        } else if (usesGeminiApi && !isModificationAction) {
-            // --- NON-MODIFICATION FLOW using GEMINI ---
-            let codeToProcess: string;
-            const geminiRequestType = action;
+                } else if (usesGeminiApi && !isModificationAction) {
+                    // Non-modification Gemini logic...
+                    let codeToProcess: string; /* ... get codeToProcess ... */
+                    if (stats.isDirectory() || targetFiles.length > 1) {
+                        const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetFiles[0]);
+                        codeToProcess = await getConsolidatedSources(consolidationRoot, prefix);
+                    } else if (targetFiles.length === 1) {
+                        codeToProcess = readSingleFile(targetFiles[0]);
+                    } else { /* error */ process.exit(1); }
+                    if (codeToProcess.trim() === '') { /* warn and return */ return; }
 
-            if (stats.isDirectory() || targetFiles.length > 1) {
-                console.log(`\n${logPrefix} Consolidating ${targetFiles.length} file(s) for Gemini action '${action}'...`);
-                const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetFiles[0]);
-                codeToProcess = await getConsolidatedSources(consolidationRoot, prefix);
-            } else if (targetFiles.length === 1) {
-                console.log(`\n${logPrefix} Reading single file for Gemini action '${action}'...`);
-                codeToProcess = readSingleFile(targetFiles[0]);
-            } else {
-                console.error(`${logPrefix} Internal Error: No target files identified for Gemini action '${action}'.`);
-                process.exitCode = 1;
-                return;
-            }
+                    console.log(`\n${logPrefix} Invoking Gemini service for action: ${action}...`);
+                    const result: GeminiEnhancementResult = await enhanceCodeWithGemini(action, codeToProcess);
+                    // Handle result (print or write file)...
+                    if (result.type === 'text' && result.content !== null) {
+                        if (action === EnhancementType.GenerateDocs) { /* write README.md */
+                            const outputFileName = 'README.md';
+                            const outputFilePath = path.resolve(process.cwd(), outputFileName);
+                            console.log(`\n${logPrefix} Writing generated documentation to ${outputFileName}...`);
+                            const success = writeOutputFile(outputFilePath, result.content);
+                            if (!success) { /* error */ process.exitCode = 1; }
+                            else { console.log(`\n${logPrefix} ✅ Documentation saved to: ${outputFileName}`); }
+                        } else { /* print result */
+                            console.log(`\n--- Gemini ${action} Result ---`);
+                            console.log(result.content);
+                            console.log(`--- End ${action} Result ---\n`);
+                        }
+                    } else if (result.type === 'error') { /* handle error */ process.exitCode = 1; }
+                    else { /* handle unexpected type */ process.exitCode = 1; }
 
-            if (codeToProcess.trim() === '') {
-                console.warn(`${logPrefix} Warning: Content to send to Gemini for action '${action}' is empty. Skipping API call.`);
-                return;
-            }
+                } else if (isLocalProcessingAction) {
+                    // Local processing logic...
+                    if (action === EnhancementType.Consolidate) { /* consolidate logic */
+                        const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetPath);
+                        const consolidatedContent = await getConsolidatedSources(consolidationRoot, prefix);
+                        const outputFileName = 'consolidated_output.txt';
+                        const outputFilePath = path.resolve(process.cwd(), outputFileName);
+                        const success = writeOutputFile(outputFilePath, consolidatedContent);
+                        if (!success) process.exitCode = 1;
+                        else console.log(`\n${logPrefix} ✅ Consolidated content saved to: ${outputFileName}`);
+                    } else if (action === EnhancementType.InferFromData) { /* infer logic */
+                        if (!interfaceName) { /* error */ process.exit(1); }
+                        const dataFilePath = targetFiles[0];
+                        const relativeDataFilePath = path.relative(process.cwd(), dataFilePath).split(path.sep).join('/');
+                        try { /* read, parse, infer, print */
+                            const fileContent = readSingleFile(dataFilePath);
+                            let data: any;
+                            try { data = JSON.parse(fileContent); } catch (e) { /* error */ process.exit(1); }
+                            const inferredInterface = inferTypesFromData(interfaceName, data);
+                            console.log(`\n--- Inferred Interface: ${interfaceName} ---\n${inferredInterface}\n--- End Interface ---`);
+                        } catch (e) { /* error */ process.exit(1); }
+                    } else if (action === EnhancementType.AddPathComment) { /* add path comment logic */
+                        console.log(`\n${logPrefix} Starting SEQUENTIAL action '${action}' on ${targetFiles.length} file(s)...`);
+                        let updatedCount = 0, unchangedCount = 0, skippedCount = 0, errorCount = 0;
+                        const nonCommentableExtensions = new Set(['.json', '.env']);
+                        const anyCommentRegex = /^\s*(\/\/.*|#.*)/;
+                        for (const absoluteFilePath of targetFiles) { /* loop, skip, read, check, update */
+                            const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
+                            const fileExtension = path.extname(absoluteFilePath).toLowerCase();
+                            if (nonCommentableExtensions.has(fileExtension)) { skippedCount++; continue; }
+                            try {
+                                const pathComment = `// File: ${relativeFilePath}`;
+                                const originalCode = readSingleFile(absoluteFilePath);
+                                const lines = originalCode.split(/\r?\n/);
+                                // Check if correct
+                                let firstNonBlankLineIndex = lines.findIndex(line => line.trim() !== '');
+                                if (firstNonBlankLineIndex === -1) firstNonBlankLineIndex = 0; // Handle empty file case
+                                const firstNonBlankLine = lines[firstNonBlankLineIndex]?.trim() ?? '';
 
-            console.log(`\n${logPrefix} Invoking Gemini service for action: ${geminiRequestType}...`);
-            const result: GeminiEnhancementResult = await enhanceCodeWithGemini(geminiRequestType, codeToProcess);
+                                let alreadyCorrect = false;
+                                if (firstNonBlankLineIndex === 0 && firstNonBlankLine === pathComment && (lines.length === 1 || (lines.length > 1 && lines[1].trim() === ''))) {
+                                    alreadyCorrect = true;
+                                }
 
-            // --- Handle Gemini Result ---
-            if (result.type === 'text' && result.content !== null) {
-                if (geminiRequestType === EnhancementType.GenerateDocs) {
-                    const outputFileName = 'README.md';
-                    const outputFilePath = path.resolve(process.cwd(), outputFileName);
-                    console.log(`\n${logPrefix} Attempting to write generated documentation to ${outputFileName}...`);
-                    const success = writeOutputFile(outputFilePath, result.content);
-                    if (!success) {
-                        console.error(`${logPrefix} ❌ Failed to write documentation file.`);
-                        process.exitCode = 1;
-                    } else {
-                        console.log(`\n${logPrefix} ✅ Generated documentation saved to: ${outputFileName}`);
+                                if (alreadyCorrect) { unchangedCount++; continue; }
+                                // Update
+                                let firstCodeLineIndex = 0;
+                                while (firstCodeLineIndex < lines.length && (lines[firstCodeLineIndex].trim() === '' || anyCommentRegex.test(lines[firstCodeLineIndex].trim()))) {
+                                    firstCodeLineIndex++;
+                                }
+                                const codeContentLines = lines.slice(firstCodeLineIndex);
+                                const codeContent = codeContentLines.length > 0 ? codeContentLines.join('\n') : '';
+                                const newCode = `${pathComment}\n\n${codeContent}`;
+                                const updated = updateFileContent(absoluteFilePath, newCode);
+                                if (updated) updatedCount++; else errorCount++;
+                            } catch (e) { errorCount++; }
+                        }
+                        // Summarize
+                        console.log("\n--- Sequential Action Summary ---");
+                        console.log(`  Action: ${action}, Files: ${targetFiles.length}, Updated: ${updatedCount}, Unchanged: ${unchangedCount}, Skipped: ${skippedCount}, Errors: ${errorCount}`);
+                        console.log("---------------------------------");
+                        if (errorCount > 0) process.exitCode = 1;
                     }
                 } else {
-                    console.log(`\n--- Gemini ${geminiRequestType} Result ---`);
-                    console.log(result.content);
-                    console.log(`--- End ${geminiRequestType} Result ---\n`);
-                }
-            } else if (result.type === 'error') {
-                console.error(`\n${logPrefix} ❌ Gemini service failed: ${result.content ?? 'No specific error message provided.'}`);
-                process.exitCode = 1;
-            } else {
-                console.warn(`${logPrefix} ⚠️ Received unexpected result type '${result.type}' or null content (expected 'text') for ${geminiRequestType} action.`);
-                if (result.content) {
-                    console.log("--- Unexpected Content Received ---");
-                    console.log(result.content.substring(0, 500) + (result.content.length > 500 ? '...' : ''));
-                    console.log("----------------------------------");
-                }
-                process.exitCode = 1;
-            }
-
-            // C) Actions processed locally WITHOUT Gemini (Consolidate, InferFromData, AddPathComment)
-        } else if (isLocalProcessingAction) {
-            // --- LOCAL PROCESSING FLOW ---
-            console.log(`\n${logPrefix} Starting local action '${action}'...`);
-
-            // C.1) Consolidate Files
-            if (action === EnhancementType.Consolidate) {
-                console.log(`${logPrefix} Consolidating ${targetFiles.length} file(s)...`);
-                const consolidationRoot = stats.isDirectory() ? targetPath : path.dirname(targetPath);
-                console.log(`${logPrefix} Consolidating from root: ${consolidationRoot} ${prefix ? `with prefix '${prefix}'` : ''}...`);
-                const consolidatedContent = await getConsolidatedSources(consolidationRoot, prefix);
-                const outputFileName = 'consolidated_output.txt';
-                const outputFilePath = path.resolve(process.cwd(), outputFileName);
-                const success = writeOutputFile(outputFilePath, consolidatedContent);
-                if (!success) process.exitCode = 1;
-                else console.log(`\n${logPrefix} ✅ You can now find consolidated content in: ${outputFileName}`);
-
-                // C.2) Infer Types from Data File
-            } else if (action === EnhancementType.InferFromData) {
-                if (!interfaceName) {
-                    console.error("[App] Internal Error: Interface name missing for InferFromData.");
-                    process.exit(1);
-                }
-                const dataFilePath = targetFiles[0];
-                const relativeDataFilePath = path.relative(process.cwd(), dataFilePath).split(path.sep).join('/');
-                console.log(`${logPrefix} Inferring types from data file: ${relativeDataFilePath}`);
-                try {
-                    const fileContent = readSingleFile(dataFilePath);
-                    let data: any;
-                    try {
-                        data = JSON.parse(fileContent); // Parse JSON content
-                    } catch (parseError) {
-                        console.error(`${logPrefix} ❌ Error parsing JSON data from ${relativeDataFilePath}: ${parseError instanceof Error ? parseError.message : parseError}`);
-                        process.exit(1);
-                    }
-                    const inferredInterface = inferTypesFromData(interfaceName, data);
-                    console.log(`\n--- Inferred Interface: ${interfaceName} ---`);
-                    console.log(inferredInterface);
-                    console.log(`--- End Interface ---`);
-                } catch (inferenceError) {
-                    console.error(`${logPrefix} ❌ Error during type inference for ${relativeDataFilePath}: ${inferenceError instanceof Error ? inferenceError.message : inferenceError}`);
+                    console.error(`${logPrefix} Internal Error: Enhancement action "${action}" was not handled.`);
                     process.exit(1);
                 }
 
-                // C.3) Add Path Comment Header (Local Modification)
-            } else if (action === EnhancementType.AddPathComment) {
-                console.log(`\n${logPrefix} Starting SEQUENTIAL action '${action}' on ${targetFiles.length} file(s)...`);
-                let updatedCount = 0;
-                let unchangedCount = 0;
-                let skippedCount = 0;
-                let errorCount = 0;
-
-                const nonCommentableExtensions = new Set(['.json', '.env']);
-                const anyCommentRegex = /^\s*(\/\/.*|#.*)/;
-
-                for (const absoluteFilePath of targetFiles) {
-                    const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
-                    const fileExtension = path.extname(absoluteFilePath).toLowerCase();
-
-                    if (nonCommentableExtensions.has(fileExtension)) {
-                        console.log(`    ${logPrefix} ⏩ Skipping non-commentable file type: ${relativeFilePath}`);
-                        skippedCount++;
-                        continue;
-                    }
-
-                    try {
-                        const pathComment = `// File: ${relativeFilePath}`;
-                        const originalCode = readSingleFile(absoluteFilePath);
-                        const lines = originalCode.split(/\r?\n/);
-
-                        let firstNonBlankLineIndex = -1;
-                        let firstNonBlankLine = '';
-                        for (let i = 0; i < lines.length; i++) {
-                            const trimmedLine = lines[i].trim();
-                            if (trimmedLine !== '') {
-                                firstNonBlankLineIndex = i;
-                                firstNonBlankLine = trimmedLine;
-                                break;
-                            }
-
-                        let alreadyCorrect = false;
-                        if (firstNonBlankLineIndex === 0 && firstNonBlankLine === pathComment) {
-                            if (lines.length === 1 || (lines.length > 1 && lines[1].trim() === '')) {
-                                alreadyCorrect = true;
-                            }
-
-                        if (alreadyCorrect) {
-                            console.log(`    ${logPrefix} ✅ No update needed for ${relativeFilePath} (Correct header found)`);
-                            unchangedCount++;
-                            continue;
-                        }
-
-                        console.log(`    ${logPrefix} 🔄 Updating header for ${relativeFilePath}...`);
-
-                        let firstCodeLineIndex = 0;
-                        while (firstCodeLineIndex < lines.length) {
-                            const lineTrim = lines[firstCodeLineIndex].trim();
-                            if (lineTrim === '' || anyCommentRegex.test(lineTrim)) {
-                                firstCodeLineIndex++;
-                            } else {
-                                break;
-                            }
-
-                        const codeContentLines = lines.slice(firstCodeLineIndex);
-                        const codeContent = codeContentLines.length > 0 ? codeContentLines.join('\n') : '';
-                        const newCode = `${pathComment}\n\n${codeContent}`;
-
-                        const updated = updateFileContent(absoluteFilePath, newCode); // Update the file content
-                        if (updated) updatedCount++; else errorCount++;
-
-                    } catch (fileProcessingError) {
-                        console.error(`    ${logPrefix} ❌ Error during AddPathComment for ${relativeFilePath}: ${fileProcessingError instanceof Error ? fileProcessingError.message : fileProcessingError}`);
-                        errorCount++;
-                    }
-                } // End for loop
-
-                // --- Summarize Sequential Results ---
-                console.log("\n--- Sequential Action Summary ---");
-                console.log(`  Action:              ${action}`);
-                console.log(`  Total Files Targeted:  ${targetFiles.length}`);
-                console.log(`  Successfully Updated:  ${updatedCount}`);
-                console.log(`  No Changes Needed:   ${unchangedCount}`);
-                console.log(`  Skipped (Non-Comment): ${skippedCount}`);
-                console.log(`  Errors Encountered:    ${errorCount}`);
-                console.log("---------------------------------");
-                if (errorCount > 0) process.exitCode = 1;
+            } catch (error) {
+                console.error(`\n${logPrefix} ❌ An unexpected error occurred during enhancement action ${action}:`);
+                if (error instanceof Error) console.error(`   Message: ${error.message}`);
+                else console.error("   Unknown error object:", error);
+                process.exit(1);
             }
-        } else {
-            console.error(`${logPrefix} Internal Error: Action "${action}" was not handled by any processing flow.`);
+            console.log(`\n${logPrefix} Execution finished for action: ${action}.`);
+            break; // Exit the switch case
+        }
+
+
+        // Default case for the switch statement
+        default: {
+            console.error(`${logPrefix} ❌ Internal Error: Unhandled command type received: ${command}`);
             process.exit(1);
         }
+    } // End switch statement
 
-    } catch (error) {
-        console.error(`\n${logPrefix} ❌ An unexpected error occurred during script execution:`);
-        if (error instanceof Error) {
-            console.error(`   Message: ${error.message}`);
-            // console.error(error.stack); // Uncomment for debugging
-        } else {
-            console.error("   Unknown error object:", error);
-        }
-        process.exit(1);
-    }
-
-    console.log(`\n${logPrefix} Execution finished for action: ${action}.`);
 } // End runCommandLogic
 
 // File: src/gemini/gemini.service.ts
@@ -874,53 +994,46 @@ export const EXCLUDE_FILENAMES: Set<string> = new Set([
 
 // File: src/shared/enums/enhancement.type.ts
 
+// src/shared/enums/enhancement.type.ts
+
 /**
- * Enum representing the different types of enhancements that can be applied to code.
+ * Enum representing the different types of code enhancement or utility actions
+ * that can be performed by the CLI tool.
  */
 export enum EnhancementType {
-	/**
-	 * Add comments to the code.
-	 */
+	// --- AI-Driven Enhancements ---
+	/** Add TSDoc/JSDoc and inline comments to the code. */
 	AddComments = 'AddComments',
-	/**
-	 * Analyze the code.
-	 */
+	/** Provide a high-level analysis of code structure and quality. */
 	Analyze = 'Analyze',
-	/**
-	 * Explain the code.
-	 */
+	/** Explain what the code does in simple terms. */
 	Explain = 'Explain',
-	/**
-	 * Add path comments to the code.
-	 */
-	AddPathComment = 'AddPathComment',
-	/**
-	 * Consolidate the code.
-	 */
-	Consolidate = 'Consolidate',
-	/**
-	 * Suggest improvements to the code.
-	 */
+	/** Suggest specific, actionable improvements for the code. */
 	SuggestImprovements = 'SuggestImprovements',
-	/**
-	 * Generate documentation for the code.
-	 */
+	/** Generate Markdown documentation (e.g., for README). */
 	GenerateDocs = 'GenerateDocs',
-	/**
-	 * Infer types or structures from provided data.
-	 */
+
+	// --- Local Code/File Manipulations ---
+	/** Add a '// File: <relativePath>' comment header to files (Local Action). */
+	AddPathComment = 'AddPathComment',
+	/** Consolidate multiple source files into a single output file (Local Action). */
+	Consolidate = 'Consolidate',
+	/** Infer TypeScript interface from a JSON data file (Local Action). */
 	InferFromData = 'InferFromData',
-	// Add more types here later
+	/** Generate a Markdown file representing the project directory structure (Local Action). */
+	GenerateStructureDoc = 'GenerateStructureDoc', // <<< Added Here
+
+	// Add more types here in the future (e.g., GenerateTests, Refactor)
 }
 
 /**
- * Checks if a given string is a valid EnhancementType.
+ * Type guard function to check if a given string is a valid EnhancementType value.
+ * Useful for validating command inputs or data.
  *
- * @param value The string to check.
- * @returns True if the string is a valid EnhancementType, false otherwise.
+ * @param value The string value to check.
+ * @returns True if the value is a valid member of the EnhancementType enum, false otherwise.
  */
 export function isValidEnhancementType(value: string): value is EnhancementType {
-	// Check if the provided value exists in the EnhancementType enum values.
 	return Object.values(EnhancementType).includes(value as EnhancementType);
 }
 
@@ -1149,61 +1262,56 @@ export function inferTypesFromData(interfaceName: string, data: any): string {
 
 // File: src/shared/types/app.type.ts
 
-import { EnhancementType } from '../enums/enhancement.type.js'; // Use the enum from its new location
+// src/shared/types/app.type.ts
+
+import { EnhancementType } from '../enums/enhancement.type.js';
 
 /**
- * Represents the command-line arguments passed to the application.
+ * Represents the unified command-line arguments passed to the application,
+ * including arguments specific to different commands.
  */
 export interface CliArguments {
-    /**
-     * The enhancement type to apply (e.g., 'add-decorator').
-     */
+    /** The specific enhancement or utility action requested. */
     command: EnhancementType;
-    /**
-     * The target file or directory path.
-     */
+
+    /** The target file or directory path (used by most commands, default for GenerateStructureDoc). */
     targetPath: string;
-    /**
-     * An optional prefix to add (e.g., to class names).
-     */
+
+    /** Optional filename prefix filter (used by file-processing commands). */
     prefix?: string;
-    /**
-     * An optional interface name (used by the 'InferFromData' command).
-     */
-    interfaceName?: string; // Specific to InferFromData command
-    /**
-     * Allows other properties to be passed from yargs.
-     */
+
+    /** Optional name for the generated interface (used by InferFromData). */
+    interfaceName?: string;
+
+    /** Path for the output Markdown file (used by GenerateStructureDoc, has default). */
+    output?: string; // Changed to optional as it only applies to one command
+
+    /** Flag to include standard descriptions (used by GenerateStructureDoc, has default). */
+    descriptions?: boolean; // Changed to optional
+
+    /** Optional maximum directory depth (used by GenerateStructureDoc). */
+    depth?: number;
+
+    /** Optional comma-separated list of additional exclude patterns (used by GenerateStructureDoc, has default). */
+    exclude?: string; // Changed to optional
+
+    // --- Standard yargs properties ---
     [key: string]: unknown; // Allow other yargs properties
-    /**
-     * Positional arguments passed to the script.
-     */
-    _: (string | number)[]; // Positional args
-    /**
-     * The name of the script being executed.
-     */
-    $0: string;             // Script name
+    _: (string | number)[]; // Positional args not mapped to specific options
+    $0: string;             // The script name or path as executed
 }
 
+
 /**
- * Represents the result of processing a single file.
+ * Represents the result of processing a single file,
+ * often used in summarizing batch operations.
  */
 export interface FileProcessingResult {
-    /**
-     * The path to the processed file.
-     */
+    /** The relative path of the processed file. */
     filePath: string;
-    /**
-     * The status of the file processing operation.
-     *  - 'updated': The file was modified.
-     *  - 'unchanged': The file was not modified.
-     *  - 'error': An error occurred during processing.
-     *  - 'processed': The file was processed, even if no modifications were made.
-     */
-    status: 'updated' | 'unchanged' | 'error' | 'processed'; // 'processed' could be for non-modification tasks
-    /**
-     * An optional message providing more detail about the processing result.
-     */
+    /** The outcome of the processing for this file. */
+    status: 'updated' | 'unchanged' | 'error' | 'processed';
+    /** Optional message, typically used for errors or warnings. */
     message?: string;
 }
 

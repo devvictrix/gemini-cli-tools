@@ -6,9 +6,6 @@ import { CliArguments } from '../../shared/types/app.type.js';
 import { runCommandLogic } from './gemini.handler.js';
 import { EnhancementType } from '../../shared/enums/enhancement.type.js';
 
-// --- DEFINE the command name constant ---
-const GenerateStructureDocCommandName = 'GenerateStructureDoc'; // Define the command name
-
 const logPrefix = "[GeminiCLI]";
 
 /**
