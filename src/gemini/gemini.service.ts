@@ -20,7 +20,13 @@ export interface GeminiEnhancementResult {
     content: string | null;
 }
 
-// --- generatePrompt function remains the same ---
+/**
+ * Generates a prompt for the Gemini API based on the enhancement type and code.
+ *
+ * @param {EnhancementType} enhancement - The type of enhancement to generate the prompt for.
+ * @param {string} code - The code to be enhanced.
+ * @returns {string} The generated prompt string.
+ */
 function generatePrompt(enhancement: EnhancementType, code: string): string {
     console.log(`[GeminiService] Generating prompt for enhancement type: ${enhancement}`);
     // ... (rest of generatePrompt code is identical to original)
@@ -97,7 +103,12 @@ ${code}
 }
 
 
-// --- callGeminiApi function remains the same ---
+/**
+ * Calls the Gemini API with a given prompt.
+ *
+ * @param {string} promptText - The prompt text to send to the Gemini API.
+ * @returns {Promise<string | null>} A promise that resolves with the response text, or null if an error occurred.
+ */
 async function callGeminiApi(promptText: string): Promise<string | null> {
     console.log(`[GeminiService] Sending request to Gemini API (${promptText.length} chars)...`);
 
@@ -116,6 +127,7 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
     };
 
     try {
+        // Attempt to make the POST request to the Gemini API
         const response: AxiosResponse = await axios.post(GEMINI_API_ENDPOINT, requestData, config);
 
         // Robustly check for response structure and potential blocks
@@ -144,6 +156,7 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
         }
     } catch (error) {
         console.error("[GeminiService] ❌ Error calling Gemini API:");
+        // Cast the error to AxiosError to access response data
         const axiosError = error as AxiosError;
         if (axiosError.response) {
             console.error(`  Status: ${axiosError.response.status}`);
@@ -164,7 +177,13 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
 }
 
 
-// --- enhanceCodeWithGemini function remains the same ---
+/**
+ * Enhances the given code with Gemini based on the specified enhancement type.
+ *
+ * @param {EnhancementType} enhancementType - The type of enhancement to apply.
+ * @param {string} code - The code to be enhanced.
+ * @returns {Promise<GeminiEnhancementResult>} A promise that resolves with the enhancement result.
+ */
 export async function enhanceCodeWithGemini(
     enhancementType: EnhancementType,
     code: string
@@ -183,11 +202,13 @@ export async function enhanceCodeWithGemini(
         EnhancementType.GenerateDocs,
     ].includes(enhancementType);
 
+    // Generate the prompt based on the enhancement type and code
     const prompt = generatePrompt(enhancementType, code);
     if (!prompt) {
         return { type: 'error', content: `Failed to generate prompt for action: ${enhancementType}` };
     }
 
+    // Call Gemini API with the generated prompt
     const rawResponse = await callGeminiApi(prompt);
 
     if (rawResponse === null) {
@@ -196,6 +217,7 @@ export async function enhanceCodeWithGemini(
 
     if (expectsCode) {
         console.log(`[GeminiService] Processing response for ${enhancementType} (expects code)...`);
+        // Extract code block from the raw response
         const extractedCode = extractCodeBlock(rawResponse); // Use local utility
         if (extractedCode) {
             console.log("[GeminiService] Code block extracted successfully.");
@@ -209,6 +231,7 @@ export async function enhanceCodeWithGemini(
         }
     } else if (expectsText) {
         console.log(`[GeminiService] Processing response for ${enhancementType} (expects text)...`);
+        // Return the raw response as text
         return { type: 'text', content: rawResponse };
     } else {
         console.error(`[GeminiService] Internal Error: Unhandled enhancement type: ${enhancementType}`);

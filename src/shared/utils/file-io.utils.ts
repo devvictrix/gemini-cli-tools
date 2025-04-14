@@ -7,6 +7,9 @@ const logPrefix = "[FileIO]";
 
 /**
  * Reads the content of a single file synchronously.
+ * @param {string} filePath - The path to the file to read.
+ * @returns {string} The content of the file as a string.
+ * @throws {Error} If the file does not exist or cannot be read.
  */
 export function readSingleFile(filePath: string): string {
     const relativeFilePath = path.relative(process.cwd(), filePath).split(path.sep).join('/');
@@ -15,7 +18,7 @@ export function readSingleFile(filePath: string): string {
         if (!stats.isFile()) {
             throw new Error(`Target path is not a file: ${relativeFilePath}`);
         }
-        const content = fs.readFileSync(filePath, 'utf8');
+        const content = fs.readFileSync(filePath, 'utf8'); // Read the file content in UTF-8 encoding.
         // console.log(`${logPrefix} Read ${content.length} chars from ${relativeFilePath}.`); // Keep logging minimal
         return content;
     } catch (readError) {
@@ -26,6 +29,9 @@ export function readSingleFile(filePath: string): string {
 
 /**
  * Updates the content of a file synchronously. Creates parent directory if needed.
+ * @param {string} filePath - The path to the file to update.
+ * @param {string} newContent - The new content to write to the file.
+ * @returns {boolean} True if the file was successfully updated, false otherwise.
  */
 export function updateFileContent(filePath: string, newContent: string): boolean {
     const relativeFilePath = path.relative(process.cwd(), filePath).split(path.sep).join('/');
@@ -33,10 +39,10 @@ export function updateFileContent(filePath: string, newContent: string): boolean
     try {
         const outputDir = path.dirname(filePath);
         if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
+            fs.mkdirSync(outputDir, { recursive: true }); // Create the directory recursively if it doesn't exist.
             console.log(`${logPrefix} Created directory: ${path.relative(process.cwd(), outputDir)}`);
         }
-        fs.writeFileSync(filePath, newContent, 'utf8');
+        fs.writeFileSync(filePath, newContent, 'utf8'); // Write the new content to the file in UTF-8 encoding.
         console.log(`${logPrefix} ✅ Successfully updated ${relativeFilePath}.`);
         return true;
     } catch (writeError) {
@@ -47,6 +53,9 @@ export function updateFileContent(filePath: string, newContent: string): boolean
 
 /**
  * Writes content to a specified output file. Creates parent directory if needed.
+ * @param {string} outputFilePath - The path to the output file.
+ * @param {string} content - The content to write to the output file.
+ * @returns {boolean} True if the file was successfully written, false otherwise.
  */
 export function writeOutputFile(outputFilePath: string, content: string): boolean {
     const relativeOutputPath = path.relative(process.cwd(), outputFilePath).split(path.sep).join('/');
@@ -54,10 +63,10 @@ export function writeOutputFile(outputFilePath: string, content: string): boolea
     try {
         const outputDir = path.dirname(outputFilePath);
         if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
+            fs.mkdirSync(outputDir, { recursive: true }); // Create the directory recursively if it doesn't exist.
             console.log(`${logPrefix} Created directory: ${path.relative(process.cwd(), outputDir)}`);
         }
-        fs.writeFileSync(outputFilePath, content, 'utf8');
+        fs.writeFileSync(outputFilePath, content, 'utf8'); // Write the content to the output file in UTF-8 encoding.
         console.log(`${logPrefix} ✅ Successfully wrote ${content.length} characters to ${relativeOutputPath}.`);
         return true;
     } catch (writeError) {

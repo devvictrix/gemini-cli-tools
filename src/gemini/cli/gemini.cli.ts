@@ -1,4 +1,5 @@
 // src/gemini/cli/gemini.cli.ts
+
 // Handles command-line argument parsing using yargs for the Gemini module.
 
 import yargs, { Argv } from 'yargs';
@@ -11,6 +12,8 @@ const logPrefix = "[GeminiCLI]";
 
 /**
  * Sets up common options (targetPath, prefix) for yargs commands.
+ * @param yargsInstance The yargs instance to configure.
+ * @returns The yargs instance with the added options.
  */
 const setupDefaultCommand = (yargsInstance: Argv<{}>): Argv<{ targetPath: string; prefix: string | undefined }> => {
     return yargsInstance
@@ -29,7 +32,10 @@ const setupDefaultCommand = (yargsInstance: Argv<{}>): Argv<{ targetPath: string
 
 /**
  * Configures and runs the yargs CLI parser.
- * @param processArgs Typically process.argv
+ * This function defines the commands, options, and logic for the Gemini CLI.
+ * @param processArgs The arguments passed to the process, typically process.argv.
+ * @returns A Promise that resolves when the CLI execution is complete.
+ * @throws An error if argument parsing or command execution fails.
  */
 export async function runCli(processArgs: string[]): Promise<void> {
     console.log(`${logPrefix} Initializing...`);

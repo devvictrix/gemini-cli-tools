@@ -16,7 +16,8 @@ const logPrefix = "[GeminiHandler]";
 /**
  * The core application logic. Parses arguments, identifies target files,
  * and executes the requested action (local or via Gemini API).
- * @param argv The parsed arguments object from yargs.
+ * @param {CliArguments} argv The parsed arguments object from yargs.
+ * @returns {Promise<void>} A promise that resolves when the command logic is complete.
  */
 export async function runCommandLogic(argv: CliArguments): Promise<void> {
     const { command: action, targetPath, prefix, interfaceName } = argv;
@@ -91,6 +92,11 @@ export async function runCommandLogic(argv: CliArguments): Promise<void> {
             const limit = pLimit(concurrencyLimit);
             console.log(`\n${logPrefix} Starting PARALLEL modification action '${action}' on ${targetFiles.length} file(s) with concurrency ${concurrencyLimit}...`);
 
+            /**
+             * Processes a single file by reading its content, enhancing it with Gemini, and updating the file.
+             * @param {string} absoluteFilePath The absolute path to the file.
+             * @returns {Promise<FileProcessingResult>} A promise that resolves with the file processing result.
+             */
             const fileProcessor = async (absoluteFilePath: string): Promise<FileProcessingResult> => {
                 const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
                 try {
@@ -99,7 +105,7 @@ export async function runCommandLogic(argv: CliArguments): Promise<void> {
 
                     if (result.type === 'code' && result.content !== null) {
                         if (originalCode.trim() !== result.content.trim()) {
-                            const updated = updateFileContent(absoluteFilePath, result.content);
+                            const updated = updateFileContent(absoluteFilePath, result.content); // Update the file content
                             return { filePath: relativeFilePath, status: updated ? 'updated' : 'error', message: updated ? undefined : 'File write failed' };
                         } else {
                             console.log(`    ${logPrefix} No changes needed for ${relativeFilePath}.`);
@@ -118,7 +124,7 @@ export async function runCommandLogic(argv: CliArguments): Promise<void> {
                 }
             };
 
-            const tasks = targetFiles.map(filePath => limit(() => fileProcessor(filePath)));
+            const tasks = targetFiles.map(filePath => limit(() => fileProcessor(filePath))); // Create tasks with concurrency limit
             const results: FileProcessingResult[] = await Promise.all(tasks);
 
             // --- Summarize Parallel Results ---
@@ -229,7 +235,7 @@ export async function runCommandLogic(argv: CliArguments): Promise<void> {
                     const fileContent = readSingleFile(dataFilePath);
                     let data: any;
                     try {
-                        data = JSON.parse(fileContent);
+                        data = JSON.parse(fileContent); // Parse JSON content
                     } catch (parseError) {
                         console.error(`${logPrefix} ❌ Error parsing JSON data from ${relativeDataFilePath}: ${parseError instanceof Error ? parseError.message : parseError}`);
                         process.exit(1);
@@ -309,7 +315,7 @@ export async function runCommandLogic(argv: CliArguments): Promise<void> {
                         const codeContent = codeContentLines.length > 0 ? codeContentLines.join('\n') : '';
                         const newCode = `${pathComment}\n\n${codeContent}`;
 
-                        const updated = updateFileContent(absoluteFilePath, newCode);
+                        const updated = updateFileContent(absoluteFilePath, newCode); // Update the file content
                         if (updated) updatedCount++; else errorCount++;
 
                     } catch (fileProcessingError) {
