@@ -10,7 +10,7 @@ import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.servic
 import { EnhancementType } from '../../shared/enums/enhancement.type.js';
 
 const logPrefix = "[AnalyzeArchitecture]";
-const DEFAULT_OUTPUT_FILENAME = 'AI_Generated_Architecture.md'; // <<< Changed Default Name
+const DEFAULT_OUTPUT_FILENAME = 'AI Architecture Analyzed.md'; // <<< Changed Default Name
 
 /**
  * Executes the AnalyzeArchitecture command. Consolidates code from the target directory,
