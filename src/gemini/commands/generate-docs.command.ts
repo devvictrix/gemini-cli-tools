@@ -1,5 +1,5 @@
-// src/gemini/commands/generate-docs.command.ts
-// (Similar to analyze/explain, but writes output to README.md)
+// File: src/gemini/commands/generate-docs.command.ts
+
 import fs from 'fs';
 import path from 'path';
 import { CliArguments } from '../../shared/types/app.type.js';

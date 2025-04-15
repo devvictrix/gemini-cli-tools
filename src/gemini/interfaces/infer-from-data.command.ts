@@ -1,4 +1,5 @@
-// src/gemini/commands/infer-from-data.command.ts
+// File: src/gemini/interfaces/infer-from-data.command.ts
+
 import path from 'path';
 import fs from 'fs';
 import { CliArguments } from '../../shared/types/app.type.js';

@@ -1,4 +1,5 @@
-// src/gemini/commands/analyze.command.ts
+// File: src/gemini/commands/analyze.command.ts
+
 import fs from 'fs';
 import path from 'path';
 import { CliArguments } from '../../shared/types/app.type.js';

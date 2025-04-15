@@ -1,4 +1,5 @@
-// src/gemini/cli/gemini.handler.ts
+// File: src/gemini/cli/gemini.handler.ts
+
 import { CliArguments } from '../../shared/types/app.type.js';
 import { EnhancementType } from '../../shared/enums/enhancement.type.js';
 

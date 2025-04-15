@@ -1,5 +1,5 @@
-// src/gemini/commands/explain.command.ts
-// (Very similar to analyze.command.ts, just uses a different EnhancementType)
+// File: src/gemini/commands/explain.command.ts
+
 import fs from 'fs';
 import path from 'path';
 import { CliArguments } from '../../shared/types/app.type.js';

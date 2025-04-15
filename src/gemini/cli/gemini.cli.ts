@@ -1,4 +1,5 @@
-// src/gemini/cli/gemini.cli.ts
+// File: src/gemini/cli/gemini.cli.ts
+
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 // Corrected: Import the *specific types* needed, not the union directly here if only using EnhancementType

@@ -1,4 +1,5 @@
-// src/gemini/commands/add-comments.command.ts
+// File: src/gemini/commands/add-comments.command.ts
+
 import path from 'path';
 import fs from 'fs'; // Needed for statSync if re-validating path
 import pLimit from 'p-limit';

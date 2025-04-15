@@ -1,4 +1,4 @@
-// src/gemini/services/gemini.service.ts // Correct new path
+// File: src/gemini/gemini.service.ts
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
 // Ensure config path is correct relative to this new location

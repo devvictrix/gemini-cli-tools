@@ -1,5 +1,5 @@
-// src/gemini/commands/suggest-improvements.command.ts
-// (Very similar to analyze.command.ts)
+// File: src/gemini/commands/suggest-improvements.command.ts
+
 import fs from 'fs';
 import path from 'path';
 import { CliArguments } from '../../shared/types/app.type.js';

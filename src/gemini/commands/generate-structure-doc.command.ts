@@ -1,6 +1,5 @@
-// src/gemini/commands/generate-structure-doc.command.ts
-// This file defines a command to generate a tree-like documentation of a project's directory structure.
-// It uses asynchronous file system operations for efficient directory traversal.
+// File: src/gemini/commands/generate-structure-doc.command.ts
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { CliArguments } from '../../shared/types/app.type.js';

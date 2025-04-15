@@ -1,4 +1,4 @@
-// src/shared/enums/enhancement.type.ts
+// File: src/shared/enums/enhancement.type.ts
 
 /**
  * Enum representing the different types of code enhancement or utility actions

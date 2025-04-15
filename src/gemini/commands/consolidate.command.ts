@@ -1,4 +1,5 @@
-// src/gemini/commands/consolidate.command.ts
+// File: src/gemini/commands/consolidate.command.ts
+
 import path from 'path';
 import fs from 'fs';
 import { CliArguments } from '../../shared/types/app.type.js';

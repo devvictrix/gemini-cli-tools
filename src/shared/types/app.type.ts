@@ -1,4 +1,4 @@
-// src/shared/types/app.type.ts
+// File: src/shared/types/app.type.ts
 
 import { EnhancementType } from '../enums/enhancement.type.js';
 

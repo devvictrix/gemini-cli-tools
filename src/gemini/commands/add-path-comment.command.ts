@@ -1,4 +1,5 @@
-// src/gemini/commands/add-path-comment.command.ts
+// File: src/gemini/commands/add-path-comment.command.ts
+
 import path from 'path';
 import fs from 'fs'; // Needed for statSync if re-validating path
 import { CliArguments } from '../../shared/types/app.type.js';
