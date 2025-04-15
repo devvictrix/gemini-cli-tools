@@ -161,8 +161,26 @@ export async function runCli(processArgs: string[]): Promise<void> {
             },
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.AnalyzeArchitecture } as CliArguments)
         )
+        .command( // GenerateModuleReadme (New)
+            `${EnhancementType.GenerateModuleReadme} <targetPath>`,
+            'Generate a README.md for a specific module directory using AI.',
+            (yargsInstance) => { // Use builder directly as we don't need --output
+                return yargsInstance
+                    .positional('targetPath', {
+                        describe: 'Path to the module directory.', // Specific description
+                        type: 'string',
+                        demandOption: true,
+                    })
+                    .option('prefix', { // Keep prefix option
+                        alias: 'p',
+                        type: 'string',
+                        description: 'Optional filename prefix filter for files within the module.',
+                        demandOption: false,
+                    });
+            },
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateModuleReadme } as CliArguments)
+        )
         // --- End Architecture/Design System Commands ---
-
         .demandCommand(1, 'Please specify a valid command (action).')
         .strict()
         .help()

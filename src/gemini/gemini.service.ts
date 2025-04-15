@@ -1,5 +1,5 @@
 // File: src/gemini/gemini.service.ts
-// Status: Updated (Added AnalyzeArchitecture prompt and handling)
+// Status: Updated (Added GenerateModuleReadme prompt and handling)
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import { GEMINI_API_ENDPOINT, GEMINI_API_KEY, GEMINI_MODEL_NAME } from '../config/app.config.js';
@@ -26,6 +26,13 @@ export interface GeminiEnhancementResult {
  */
 function generatePrompt(enhancement: EnhancementType, code: string): string {
     console.log(`[GeminiService] Generating prompt for enhancement type: ${enhancement}`);
+    let moduleName = "this module"; // Default placeholder
+    // Attempt to extract a potential module name from the first file path comment
+    const firstFileMatch = code.match(/^\s*\/\/\s*File:\s*.*?\/([^\/]+)\/[^\/]+\s*$/m);
+    if (firstFileMatch && firstFileMatch[1]) {
+        moduleName = `'${firstFileMatch[1]}' module`;
+    }
+
     switch (enhancement) {
         case EnhancementType.AddComments:
             return `
@@ -36,7 +43,7 @@ Code:
 ${code}
 \`\`\`
 `;
-        case EnhancementType.Analyze: // Keep distinct from AnalyzeArchitecture (console output, different focus)
+        case EnhancementType.Analyze:
             return `
 Analyze the following code snippet or consolidated codebase. Focus on:
 1.  **Code Quality:** Identify potential issues like code smells, overly complex functions, or areas violating SOLID principles.
@@ -89,9 +96,9 @@ Codebase:
 ${code}
 \`\`\`
 `;
-        case EnhancementType.AnalyzeArchitecture: // <<< New Prompt
+        case EnhancementType.AnalyzeArchitecture:
             return `
-Analyze the overall software architecture of the following consolidated codebase, representing a project or a major subsystem. Provide the analysis in Markdown format, suitable for inclusion in a 'Project_Architecture.md' file. Focus on:
+Analyze the overall software architecture of the following consolidated codebase, representing a project or a major subsystem. Provide the analysis in Markdown format, suitable for inclusion in a 'AI_Architecture_Analyzed.md' file. Focus on:
 
 1.  **Architectural Style:** Identify the dominant architectural style(s) if possible (e.g., Layered, MVC/MVP/MVVM, Microservices-like, Monolith, Event-Driven, etc.). Explain the reasoning.
 2.  **Key Modules/Components:** List the major directories/components identified in the code and briefly describe their primary responsibilities and roles within the architecture.
@@ -103,6 +110,26 @@ Analyze the overall software architecture of the following consolidated codebase
 Aim for a high-level overview. Do not describe individual functions or minor implementation details unless they are critical to understanding a core architectural concept.
 
 Consolidated Codebase:
+\`\`\`typescript
+${code}
+\`\`\`
+`;
+        case EnhancementType.GenerateModuleReadme: // <<< New Prompt
+            return `
+The following consolidated code represents the contents of a specific software module (${moduleName}) within a larger project. Analyze this code and generate a concise, well-structured README.md file content in Markdown format specifically for this module.
+
+The README should focus *only* on the provided code and include:
+
+1.  **Module Name:** (Infer a suitable name, e.g., based on the directory or primary class/function, or use the placeholder '${moduleName}')
+2.  **Purpose/Responsibility:** Clearly state the primary goal and responsibility of this module within the larger application context. What problem does it solve?
+3.  **Key Components/Features:** List the main classes, functions, or sub-components defined within this module and briefly describe what they do.
+4.  **Public API/Usage:** Describe how other parts of the application are expected to interact with this module. Highlight the main entry points, exported functions, or classes. Provide brief usage examples if possible based on the code (e.g., how to instantiate a key class or call a primary function).
+5.  **Dependencies:** Mention any significant external libraries or other internal modules this module appears to depend on heavily (if clearly identifiable from imports or usage).
+6.  **Configuration:** If the module requires specific configuration (e.g., environment variables, setup steps), mention it here (or state if none seems required).
+
+Structure the output clearly using Markdown headings (e.g., \`## Purpose\`, \`## Usage\`). Be concise and focus on information essential for another developer to understand and use this specific module. Do not invent features not present in the code.
+
+Module Code:
 \`\`\`typescript
 ${code}
 \`\`\`
@@ -121,13 +148,13 @@ ${code}
  * @returns {Promise<string | null>} The response text or null on error.
  */
 async function callGeminiApi(promptText: string): Promise<string | null> {
-    // ... (keep existing implementation)
+    // ... (implementation remains the same - includes logging, axios call, error handling, safety checks)
     console.log(`[GeminiService] Sending request to Gemini API (${promptText.length} chars)...`);
     const requestData = { contents: [{ parts: [{ text: promptText }] }] };
     const config = {
         headers: { 'Content-Type': 'application/json' },
         params: { key: GEMINI_API_KEY },
-        timeout: 180000 // Increased timeout for potentially larger analysis tasks
+        timeout: 180000 // Increased timeout
     };
 
     try {
@@ -138,16 +165,14 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
             console.warn(`[GeminiService] Warning: Response generation finished due to reason: ${candidate.finishReason}.`);
             if (candidate.finishReason === "SAFETY") {
                 console.error("[GeminiService] Response blocked due to safety concerns. Cannot proceed.");
-                return `// Gemini Safety Block: The generated content was blocked due to safety filters (${candidate.finishReason}).`; // Return specific message
+                return `## README Generation Blocked\n\nError: The generated content was blocked by Gemini's safety filters (${candidate.finishReason}). Please review the module code for potentially problematic content or try adjusting the prompt/code.`; // Return specific message
             }
             if (candidate.finishReason === "MAX_TOKENS") {
                 console.warn("[GeminiService] Response may be truncated due to maximum token limit.");
-                // Content might still be usable, so proceed but log warning
             }
             if (candidate.finishReason === "RECITATION") {
                 console.warn("[GeminiService] Response may be incomplete due to recitation limits.");
             }
-            // Other reasons might exist
         }
 
         const responseText = candidate?.content?.parts?.[0]?.text;
@@ -155,8 +180,7 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
             console.log(`[GeminiService] Received response (${responseText.trim().length} chars).`);
             return responseText.trim();
         } else if (candidate?.finishReason === "SAFETY") {
-            // Already handled above, but ensure we return the placeholder
-            return `// Gemini Safety Block: The generated content was blocked due to safety filters (${candidate.finishReason}).`;
+            return `## README Generation Blocked\n\nError: The generated content was blocked by Gemini's safety filters (${candidate.finishReason}).`;
         }
         else {
             console.warn("[GeminiService] Received empty or incomplete response text from Gemini API. Check finishReason and potential errors.");
@@ -164,27 +188,19 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
             return null; // Indicate failure
         }
     } catch (error) {
+        // ... (error handling remains the same)
         console.error("[GeminiService] ❌ Error calling Gemini API:");
         const axiosError = error as AxiosError;
         if (axiosError.response) {
             console.error(`  Status: ${axiosError.response.status}`);
             console.error(`  Data: ${JSON.stringify(axiosError.response.data, null, 2)}`);
-            // Provide more specific feedback for common errors
-            if (axiosError.response.status === 400) {
-                console.error("  Suggestion: Check the API key, request format, or prompt content (potential policy violations).");
-            } else if (axiosError.response.status === 429) {
-                console.error("  Suggestion: Rate limit exceeded. Wait before retrying.");
-            } else if (axiosError.response.status >= 500) {
-                console.error("  Suggestion: Server error on Google's side. Try again later.");
-            }
+            if (axiosError.response.status === 400) { console.error("  Suggestion: Check API key, request format, or prompt content."); }
+            else if (axiosError.response.status === 429) { console.error("  Suggestion: Rate limit exceeded. Wait before retrying."); }
+            else if (axiosError.response.status >= 500) { console.error("  Suggestion: Server error on Google's side. Try again later."); }
         } else if (axiosError.request) {
             console.error("  Request Error: No response received.", axiosError.code);
-            if (axiosError.code === 'ECONNABORTED') {
-                console.error(`  Suggestion: Request timed out after ${config.timeout / 1000} seconds. Check network or increase timeout if needed.`);
-            }
-        } else {
-            console.error('  Setup Error Message:', axiosError.message);
-        }
+            if (axiosError.code === 'ECONNABORTED') { console.error(`  Suggestion: Request timed out after ${config.timeout / 1000} seconds.`); }
+        } else { console.error('  Setup Error Message:', axiosError.message); }
         return null; // Indicate failure
     }
 }
@@ -208,7 +224,8 @@ export async function enhanceCodeWithGemini(
         EnhancementType.Explain,
         EnhancementType.SuggestImprovements,
         EnhancementType.GenerateDocs,
-        EnhancementType.AnalyzeArchitecture, // <<< Added
+        EnhancementType.AnalyzeArchitecture,
+        EnhancementType.GenerateModuleReadme, // <<< Added
     ].includes(enhancementType);
 
     if (!usesApi) {
@@ -224,7 +241,8 @@ export async function enhanceCodeWithGemini(
         EnhancementType.Explain,
         EnhancementType.SuggestImprovements,
         EnhancementType.GenerateDocs,
-        EnhancementType.AnalyzeArchitecture, // <<< Added
+        EnhancementType.AnalyzeArchitecture,
+        EnhancementType.GenerateModuleReadme, // <<< Added
     ].includes(enhancementType);
 
     const prompt = generatePrompt(enhancementType, code); // Generate the specific prompt
@@ -238,14 +256,12 @@ export async function enhanceCodeWithGemini(
 
     // Process based on expected type
     if (expectsCode) {
-        // Use the utility to extract the code block
+        // ... (logic remains the same)
         const extractedCode = extractCodeBlock(rawResponse);
         if (extractedCode) {
             return { type: 'code', content: extractedCode };
         } else {
             console.warn("[GeminiService] Could not extract code block from Gemini response for 'AddComments'. Returning raw response.");
-            // Fallback: return the raw response as text, maybe it's useful? Or error out? Let's return as text with a warning.
-            // return { type: 'error', content: `Failed to extract code block from response. Raw response was: ${rawResponse.substring(0, 200)}...` };
             return { type: 'text', content: rawResponse }; // Treat as text if extraction fails
         }
     } else if (expectsText) {

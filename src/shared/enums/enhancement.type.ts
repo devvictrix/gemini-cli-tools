@@ -1,5 +1,5 @@
 // File: src/shared/enums/enhancement.type.ts
-// Status: Updated (Adding AnalyzeArchitecture)
+// Status: Updated
 
 /**
  * Enum representing the different types of code enhancement or utility actions
@@ -18,9 +18,10 @@ export enum EnhancementType {
 	/** Generate Markdown documentation (e.g., for project root README). */
 	GenerateDocs = 'GenerateDocs',
 	/** Provide an AI-driven analysis of the project's architecture. */
-	AnalyzeArchitecture = 'AnalyzeArchitecture', // <<< Added Here
+	AnalyzeArchitecture = 'AnalyzeArchitecture',
+	/** Generate a README.md file within a specific module directory. */
+	GenerateModuleReadme = 'GenerateModuleReadme', // <<< Added Here
 	// DescribeComponent = 'DescribeComponent', // Deferred
-	// GenerateModuleReadme = 'GenerateModuleReadme', // Deferred
 
 	// --- Local Code/File Manipulations ---
 	/** Add a '// File: <relativePath>' comment header to files (Local Action). */
