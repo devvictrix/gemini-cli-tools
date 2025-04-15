@@ -6,63 +6,76 @@ import { CliArguments } from '@shared/types/app.type';
 import { runCommandLogic } from '@/gemini/cli/gemini.handler';
 import { EnhancementType } from '@/gemini/types/enhancement.type';
 
+/**
+ * @constant logPrefix - A string used as a prefix for all console logs in this file.
+ * This provides a clear visual indicator in the console output that the message originates from this CLI.
+ */
 const logPrefix = "[GeminiCLI]";
 
 /**
- * Sets up common options (targetPath, prefix) for yargs commands.
+ * @function setupDefaultCommand
+ * @description Sets up common options (`targetPath`, `prefix`) for yargs commands.
+ * These options are commonly used across multiple commands to specify the target file/directory and an optional filename prefix.
+ * @param {Argv<{}>} yargsInstance - The yargs instance to which the options will be added.
+ * @returns {Argv<{ targetPath: string; prefix: string | undefined }>} - The yargs instance with the added options.
  */
 const setupDefaultCommand = (yargsInstance: Argv<{}>): Argv<{ targetPath: string; prefix: string | undefined }> => {
     return yargsInstance
         .positional('targetPath', {
             describe: 'Target file or directory path',
             type: 'string',
-            demandOption: true,
+            demandOption: true, // Ensure the targetPath is always provided
         })
         .option('prefix', {
             alias: 'p',
             type: 'string',
             description: 'Optional filename prefix filter for directory processing.',
-            demandOption: false,
+            demandOption: false, // The prefix is optional, allowing processing of all files in a directory if not specified.
         });
 };
 
 /**
- * Configures and runs the yargs CLI parser.
+ * @async
+ * @function runCli
+ * @description Configures and runs the yargs CLI parser, defining all available commands and their options.
+ * This is the main entry point for the CLI application, handling argument parsing and command execution.
+ * @param {string[]} processArgs - The array of command-line arguments passed to the process.
+ * @returns {Promise<void>} - A promise that resolves when the CLI execution is complete.
  */
 export async function runCli(processArgs: string[]): Promise<void> {
     console.log(`${logPrefix} Initializing...`);
 
-    await yargs(hideBin(processArgs))
+    await yargs(hideBin(processArgs)) // Use hideBin to strip away the node executable and script filename
         // --- Standard Enhancement Commands ---
         .command( // AddComments
             `${EnhancementType.AddComments} <targetPath>`,
             'Add AI-generated comments to files.',
             setupDefaultCommand,
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddComments } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddComments } as CliArguments) // Executes the command logic
         )
         .command( // Analyze
             `${EnhancementType.Analyze} <targetPath>`,
             'Analyze code structure and quality (outputs to console).', // Clarified output
             setupDefaultCommand,
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.Analyze } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.Analyze } as CliArguments) // Executes the command logic
         )
         .command( // Explain
             `${EnhancementType.Explain} <targetPath>`,
             'Explain what the code does (outputs to console).', // Clarified output
             setupDefaultCommand,
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.Explain } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.Explain } as CliArguments) // Executes the command logic
         )
         .command( // SuggestImprovements
             `${EnhancementType.SuggestImprovements} <targetPath>`,
             'Suggest improvements for the code (outputs to console).', // Clarified output
             setupDefaultCommand,
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.SuggestImprovements } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.SuggestImprovements } as CliArguments) // Executes the command logic
         )
         .command( // GenerateDocs
             `${EnhancementType.GenerateDocs} <targetPath>`,
             'Generate Markdown documentation for the project (saves to README.md).',
             setupDefaultCommand,
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateDocs } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateDocs } as CliArguments) // Executes the command logic
         )
 
         // --- Local Manipulation Commands ---
@@ -70,13 +83,13 @@ export async function runCli(processArgs: string[]): Promise<void> {
             `${EnhancementType.AddPathComment} <targetPath>`,
             'Add "// File: <relativePath>" comment header to files.',
             setupDefaultCommand,
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddPathComment } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddPathComment } as CliArguments) // Executes the command logic
         )
         .command( // Consolidate
             `${EnhancementType.Consolidate} <targetPath>`,
             'Consolidate code into a single output file (consolidated_output.txt).',
             setupDefaultCommand,
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.Consolidate } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.Consolidate } as CliArguments) // Executes the command logic
         )
         .command( // InferFromData
             `${EnhancementType.InferFromData} <targetPath>`,
@@ -86,16 +99,16 @@ export async function runCli(processArgs: string[]): Promise<void> {
                     .positional('targetPath', {
                         describe: 'Path to the JSON data file',
                         type: 'string',
-                        demandOption: true,
+                        demandOption: true, // Ensure the targetPath to the JSON file is provided
                     })
                     .option('interfaceName', {
                         alias: 'i',
                         type: 'string',
                         description: 'Name for the generated TypeScript interface',
-                        demandOption: true,
+                        demandOption: true, // Ensure the interfaceName is provided for the generated interface.
                     });
             },
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.InferFromData } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.InferFromData } as CliArguments) // Executes the command logic
         )
 
         // --- Architecture/Design System Commands ---
@@ -133,7 +146,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
                         default: '', // Default uses constants + user excludes
                     });
             },
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateStructureDoc } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateStructureDoc } as CliArguments) // Executes the command logic
         )
         .command( // AnalyzeArchitecture (Updated Default Output)
             `${EnhancementType.AnalyzeArchitecture} <targetPath>`,
@@ -143,7 +156,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
                     .positional('targetPath', {
                         describe: 'Root project directory to analyze.', // More specific description
                         type: 'string',
-                        demandOption: true,
+                        demandOption: true, // Ensure the target path is provided
                     })
                     .option('output', {
                         alias: 'o',
@@ -155,10 +168,10 @@ export async function runCli(processArgs: string[]): Promise<void> {
                         alias: 'p',
                         type: 'string',
                         description: 'Optional filename prefix filter for included files.',
-                        demandOption: false,
+                        demandOption: false, // Prefix filter is optional.
                     });
             },
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.AnalyzeArchitecture } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.AnalyzeArchitecture } as CliArguments) // Executes the command logic
         )
         .command( // GenerateModuleReadme (New)
             `${EnhancementType.GenerateModuleReadme} <targetPath>`,
@@ -168,16 +181,16 @@ export async function runCli(processArgs: string[]): Promise<void> {
                     .positional('targetPath', {
                         describe: 'Path to the module directory.', // Specific description
                         type: 'string',
-                        demandOption: true,
+                        demandOption: true, // Ensure the target module directory is provided.
                     })
                     .option('prefix', { // Keep prefix option
                         alias: 'p',
                         type: 'string',
                         description: 'Optional filename prefix filter for files within the module.',
-                        demandOption: false,
+                        demandOption: false, // Prefix filter is optional.
                     });
             },
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateModuleReadme } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateModuleReadme } as CliArguments) // Executes the command logic
         )
         // --- End Architecture/Design System Commands ---
 
@@ -190,7 +203,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
                     .positional('targetPath', {
                         describe: 'Path to the source file or directory to generate tests for.', // Supports file or dir
                         type: 'string',
-                        demandOption: true,
+                        demandOption: true, // Ensures the target path to source files or directories is provided
                     })
                     // Output is implicit now
                     .option('framework', {
@@ -203,26 +216,26 @@ export async function runCli(processArgs: string[]): Promise<void> {
                         alias: 'p',
                         type: 'string',
                         description: 'Optional filename prefix filter (if targetPath is a directory).',
-                        demandOption: false,
+                        demandOption: false, // Prefix filter is optional.
                     });
             },
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateTests } as CliArguments)
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateTests } as CliArguments) // Executes the command logic
         )
         // --- End Test Generation Command ---
-        .demandCommand(1, 'Please specify a valid command (action).')
-        .strict()
-        .help()
-        .alias('h', 'help')
-        .wrap(null)
+        .demandCommand(1, 'Please specify a valid command (action).') // Ensures that at least one command is specified.
+        .strict() // Enable strict mode to prevent unknown options.
+        .help() // Enable the help command.
+        .alias('h', 'help') // Alias 'h' for the help command.
+        .wrap(null) // Wrap the help text to the terminal width.
         .fail((msg, err, yargs) => { // Custom error handling
             if (err) {
                 console.error(`\n${logPrefix} 🚨 An unexpected error occurred during argument parsing:`);
                 console.error(err);
-                process.exit(1);
+                process.exit(1); // Exit the process with an error code
             }
             console.error(`\n${logPrefix} ❌ Error: ${msg}\n`);
-            yargs.showHelp();
-            process.exit(1);
+            yargs.showHelp(); // Display the help message
+            process.exit(1); // Exit the process with an error code
         })
         .parseAsync() // Parses the arguments asynchronously
         .catch(error => { // Global error handling for command execution
@@ -233,6 +246,6 @@ export async function runCli(processArgs: string[]): Promise<void> {
             } else {
                 console.error("   An unknown error object was thrown:", error);
             }
-            process.exit(1);
+            process.exit(1); // Exit the process with an error code
         });
 }

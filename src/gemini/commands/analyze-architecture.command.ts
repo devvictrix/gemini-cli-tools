@@ -8,19 +8,33 @@ import { writeOutputFile } from '@shared/utils/file-io.utils';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '@/gemini/gemini.service';
 import { EnhancementType } from '@/gemini/types/enhancement.type';
 
+/**
+ * @constant logPrefix - A constant string used as a prefix for all console logs within this module.
+ *  This helps in easily identifying log messages originating from this specific command.
+ */
 const logPrefix = "[AnalyzeArchitecture]";
-const DEFAULT_OUTPUT_FILENAME = 'AI_Architecture_Analyzed.md'; // <<< Changed Default Name
+
+/**
+ * @constant DEFAULT_OUTPUT_FILENAME - The default filename to use when the user does not provide one.
+ *  This provides a sensible default for the output file. Updated to provide a better description.
+ */
+const DEFAULT_OUTPUT_FILENAME = 'AI_Architecture_Analyzed.md';
 
 /**
  * Executes the AnalyzeArchitecture command. Consolidates code from the target directory,
  * sends it to Gemini for architectural analysis, and saves the result to a Markdown file.
  *
- * @param args - The command line arguments.
+ * @param args - The command line arguments containing the target path, prefix, and output filename.
+ *               The `targetPath` specifies the directory to analyze.
+ *               The `prefix` (optional) specifies a filename prefix to filter files to analyze.
+ *               The `output` (optional) specifies the output filename. If not provided, a default name will be used.
  * @returns A promise that resolves when the analysis and file writing are complete.
  * @throws Error if the command is not AnalyzeArchitecture, the target path is invalid,
  *         consolidation fails, Gemini service fails, or writing the output file fails.
  */
 export async function execute(args: CliArguments): Promise<void> {
+    // --- Validate Command ---
+    // Ensure the command is of the expected type to prevent unexpected behavior.
     if (args.command !== EnhancementType.AnalyzeArchitecture) {
         throw new Error("Handler mismatch: Expected AnalyzeArchitecture command.");
     }
@@ -35,6 +49,8 @@ export async function execute(args: CliArguments): Promise<void> {
     console.log(`  Outputting analysis to: ${outputFileName}`);
 
     // --- Validate Target Path ---
+    // Verify that the target path exists and is a directory before proceeding.
+    // This prevents errors later in the process.
     let stats: fs.Stats;
     let absTargetPath: string;
     try {
@@ -50,6 +66,8 @@ export async function execute(args: CliArguments): Promise<void> {
     }
 
     // --- Consolidate Code ---
+    // Gather all relevant source code files into a single string for analysis.
+    // This simplifies the analysis process by providing all code in one place.
     console.log(`\n${logPrefix} Consolidating code from ${absTargetPath}...`);
     const consolidatedCode = await getConsolidatedSources(absTargetPath, prefix);
 
@@ -63,6 +81,7 @@ export async function execute(args: CliArguments): Promise<void> {
         return; // Exit gracefully
     }
 
+    // Additional check for empty code after trimming, as a safety net.
     if (consolidatedCode.trim() === '') { // Should be caught above, but double-check
         console.warn(`${logPrefix} Warning: Consolidated code is empty. Skipping API call.`);
         return;
@@ -70,11 +89,15 @@ export async function execute(args: CliArguments): Promise<void> {
 
 
     // --- Invoke Gemini Service ---
+    // Call the Gemini service to analyze the consolidated code and generate an architectural analysis.
+    // This is where the AI-powered analysis takes place.
     console.log(`\n${logPrefix} Invoking Gemini service for architectural analysis...`);
     const result: GeminiEnhancementResult = await enhanceCodeWithGemini(EnhancementType.AnalyzeArchitecture, consolidatedCode);
 
 
     // --- Handle Result ---
+    // Process the result from the Gemini service, writing it to a file or handling errors.
+    // This ensures that the analysis is saved and any issues are reported.
     if (result.type === 'text' && result.content !== null) {
         const outputFilePath = path.resolve(process.cwd(), outputFileName); // Resolve output path relative to CWD
         console.log(`\n${logPrefix} Writing generated architecture analysis to ${outputFileName}...`);

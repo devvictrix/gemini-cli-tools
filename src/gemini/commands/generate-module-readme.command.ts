@@ -16,7 +16,12 @@ const OUTPUT_FILENAME = 'README.md'; // Fixed output filename
  * sends it to Gemini for README generation, and saves the result to README.md
  * within that directory.
  *
- * @param args - The command line arguments, expecting targetPath to be a directory.
+ * The primary goal is to automatically generate a descriptive README file for a given module,
+ * leveraging a large language model (Gemini) to understand the code and create human-readable documentation.
+ *
+ * @param args - The command line arguments, expecting targetPath to be a directory and prefix to filter files within the directory.
+ *                 - `targetPath`: The path to the module directory.
+ *                 - `prefix`: (Optional) A prefix used to filter files within the module directory (e.g., a specific file extension).
  * @returns A promise that resolves when the README generation and writing are complete.
  * @throws Error if the command is incorrect, target path is invalid/not a directory,
  *         consolidation fails, Gemini service fails, or writing the README file fails.
@@ -34,12 +39,18 @@ export async function execute(args: CliArguments): Promise<void> {
     let stats: fs.Stats;
     let absTargetPath: string; // Will store the absolute path to the target module directory
     try {
+        // Convert the potentially relative path to an absolute path.  This ensures
+        // consistent file access regardless of the current working directory.
         absTargetPath = path.resolve(targetPath);
         stats = fs.statSync(absTargetPath);
+        // Check if the target path exists and is a directory.  This is essential to
+        // prevent errors when attempting to read files from a non-directory or non-existent path.
         if (!stats.isDirectory()) {
             throw new Error(`Target path for '${EnhancementType.GenerateModuleReadme}' must be a directory.`);
         }
     } catch (e) {
+        // Catch any errors related to accessing the target path. This includes cases where
+        // the path doesn't exist or the user doesn't have permissions to access it.
         throw new Error(`Cannot access target path: '${targetPath}'. Please ensure it exists and is a directory. ${e instanceof Error ? e.message : ''}`);
     }
 
@@ -80,9 +91,12 @@ export async function execute(args: CliArguments): Promise<void> {
             console.log(`\n${logPrefix} ✅ Successfully generated module README: ${relativeOutput}`);
         }
     } else if (result.type === 'error') {
+        // If the Gemini service returns an error, throw an error to stop the execution.
+        // This ensures that the user is informed about the failure and can investigate.
         throw new Error(`Gemini service failed during module README generation: ${result.content ?? 'No specific error message provided.'}`);
     } else {
-        // Handle unexpected results
+        // Handle unexpected results. This provides a mechanism to handle unexpected data from Gemini,
+        // logging the event and throwing an error. This assists in debugging any data inconsistencies.
         console.warn(`${logPrefix} ⚠️ Received unexpected result type '${result.type}' or null content (expected 'text').`);
         if (result.content) {
             console.log("--- Unexpected Content ---");

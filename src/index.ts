@@ -1,6 +1,6 @@
 // File: src/index.ts
 
-import 'module-alias/register';
+import 'module-alias/register'; // Import and register module aliases for cleaner imports
 import { runCli } from '@/gemini/cli/gemini.cli';
 
 /**
@@ -11,4 +11,4 @@ import { runCli } from '@/gemini/cli/gemini.cli';
  *               Typically, this is `process.argv`.
  * @returns void - The function does not return a value directly but initiates the Gemini CLI process.
  */
-runCli(process.argv); // Pass command line arguments
+runCli(process.argv); // Pass command line arguments to the CLI runner. This initiates the command parsing and execution logic.

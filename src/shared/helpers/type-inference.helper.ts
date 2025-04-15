@@ -86,9 +86,13 @@ export function inferTypesFromData(interfaceName: string, data: any): string {
     const isArrayOfObjects = Array.isArray(data) && data.every(item => typeof item === 'object' && item !== null);
 
     if (!isObject && !isArrayOfObjects) {
+        // If the data is not an object or an array of objects, throw an error to indicate invalid input.
+        // This is important for preventing unexpected behavior and ensuring that the function receives the correct type of data.
         throw new Error("Invalid input data: Must be a single object or an array of objects.");
     }
     if (Array.isArray(data) && data.length === 0) {
+        // If the data is an empty array, log a warning to the console and return an empty interface definition.
+        // This is useful for informing the user that the function is processing an empty array and generating an empty interface.
         console.warn("[Inference] Input data is an empty array. Generating an empty interface.");
         return `interface ${interfaceName} {}\n`;
     }
@@ -115,6 +119,8 @@ export function inferTypesFromData(interfaceName: string, data: any): string {
                 typeDefinitions.get(key)?.add(valueType);
             });
         } else {
+            // If an item in the array is not an object, log a warning to the console.
+            // This helps to identify potential issues with the input data and prevents the function from crashing.
             console.warn("[Inference] Skipping non-object item in array:", item);
         }
     });

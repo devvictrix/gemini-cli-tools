@@ -1,23 +1,24 @@
-// File: src/gemini/commands/generate-tests.command.ts
-
 import fs from 'fs';
 import path from 'path';
 import { CliArguments, FileProcessingResult } from '@shared/types/app.type';
-import { getTargetFiles } from '@shared/utils/filesystem.utils'; // Use this again
+import { getTargetFiles } from '@shared/utils/filesystem.utils';
 import { readSingleFile, writeOutputFile } from '@shared/utils/file-io.utils';
-import { enhanceCodeWithGemini } from '@/gemini/gemini.service';
-import { EnhancementType } from '@/gemini/types/enhancement.type'; // Adjusted path
+import { enhanceCodeWithGemini, GeminiEnhancementResult } from '@/gemini/gemini.service';
+import { EnhancementType } from '@/gemini/types/enhancement.type';
 import { extractCodeBlock } from '@/gemini/utils/code.extractor';
 
 const logPrefix = "[GenerateTests]";
 const TEST_DIR_NAME = 'tests'; // Top-level directory for tests
-// Initiate dynamic import at module scope. This returns a promise.
-const pLimitPromise = import('p-limit');
 
 /**
  * Calculates the mirrored test file path under the top-level test directory.
  * Assumes source files are under a directory like 'src'.
  * Example: /project/src/services/utils/helpers.ts -> /project/tests/services/utils/helpers.test.ts
+ *
+ * The function attempts to mirror the directory structure of the source files under a 'tests' directory.
+ * If the source file isn't under a standard 'src' directory, it will attempt to place the test file
+ * under 'tests' mirroring the entire path relative to the project root.
+ *
  * @param sourcePath Absolute path to the source file.
  * @param projectRoot Optional: The root of the project to calculate relative paths from. Defaults to cwd.
  * @returns Absolute path for the corresponding test file under the TEST_DIR_NAME directory.
@@ -28,19 +29,17 @@ function deriveMirroredTestFilePath(sourcePath: string, projectRoot: string = pr
 
     // Find the likely source root ('src' or the first dir if not 'src')
     const pathParts = relativeSourcePath.split(path.sep);
-    let sourceRoot = 'src'; // Assume 'src' by default
+
+    // Determine if the path is under the 'src' folder
     if (pathParts.length > 1 && pathParts[0] !== 'src') {
         // If not directly under 'src', maybe it's just under the root?
-        // Or should we error? Let's assume it's relative from project root for now if src isn't found.
-        // A more robust approach might find the closest package.json or tsconfig.json rootDir.
         console.warn(`${logPrefix} Source file ${relativeSourcePath} not found under a 'src' directory. Mirroring path relative to project root in '${TEST_DIR_NAME}'.`);
-        sourceRoot = ''; // Use project root as base
     } else if (pathParts[0] === 'src') {
+        // If it's under 'src', we want to remove 'src' from the path to mirror from the source root.
         pathParts.shift(); // Remove 'src' part
     } else {
         // It's directly in the project root? Unlikely for src files.
         console.warn(`${logPrefix} Source file ${relativeSourcePath} is in project root? Mirroring path directly in '${TEST_DIR_NAME}'.`);
-        sourceRoot = '';
     }
 
 
@@ -61,13 +60,20 @@ function deriveMirroredTestFilePath(sourcePath: string, projectRoot: string = pr
 /**
  * Executes the GenerateTests command. Reads source file(s), sends them to Gemini
  * for unit test generation, and saves results to corresponding *.test.ts files
- * under the top-level 'tests' directory.
+ * under the top-level 'tests' directory. Processes files sequentially.
+ *
+ * The function first validates the command.  Then, it determines which files
+ * to process based on the target path (single file or directory). For each
+ * source file identified, it calls the Gemini service to generate the tests,
+ * extracts the generated code, and writes it to the corresponding test file.
+ * Error handling ensures that failures are logged and reported in the summary.
  *
  * @param args - The command line arguments.
  * @returns A promise that resolves when the test generation is complete.
  * @throws Error if validation fails, file ops fail, or Gemini fails.
  */
 export async function execute(args: CliArguments): Promise<void> {
+    // Validate the command to ensure it's the expected one
     if (args.command !== EnhancementType.GenerateTests) {
         throw new Error("Handler mismatch: Expected GenerateTests command.");
     }
@@ -87,10 +93,17 @@ export async function execute(args: CliArguments): Promise<void> {
         const stats = fs.statSync(absTargetPath);
         if (stats.isDirectory()) {
             console.log(`\n${logPrefix} Target is a directory. Finding source files...`);
-            sourceFiles = await getTargetFiles(absTargetPath, prefix); // Use utility
+            sourceFiles = await getTargetFiles(absTargetPath, prefix); // Use utility to find files
         } else if (stats.isFile()) {
             console.log(`\n${logPrefix} Target is a single file.`);
-            sourceFiles.push(absTargetPath); // Process just this one file
+            // Ensure we don't try to generate tests for non-code files if a single file is targeted
+            const fileName = path.basename(absTargetPath);
+            const passesExtension = ['ts', 'js'].some(ext => fileName.toLowerCase().endsWith('.' + ext)); // Basic check for TS/JS
+            if (passesExtension) {
+                sourceFiles.push(absTargetPath); // Process just this one file
+            } else {
+                console.warn(`${logPrefix} Target file ${targetPath} does not have a processable extension (.ts, .js). Skipping.`);
+            }
         } else {
             throw new Error(`Target path ${targetPath} is not a valid file or directory.`);
         }
@@ -98,23 +111,25 @@ export async function execute(args: CliArguments): Promise<void> {
         throw new Error(`Cannot access target path: ${targetPath}. ${e instanceof Error ? e.message : ''}`);
     }
 
+    // Exit early if no files were found
     if (sourceFiles.length === 0) {
         console.log(`\n${logPrefix} No relevant source files found matching criteria. Exiting.`);
         return;
     }
     console.log(`${logPrefix} Found ${sourceFiles.length} source file(s) to generate tests for.`);
 
-    // --- Process Files (Potentially in Parallel) ---
-    const concurrencyLimit = 5; // Adjust as needed
-    // Await the promise initiated at the top level
-    const pLimitModule = await pLimitPromise;
-    // Access the default export from the resolved module
-    const pLimit = pLimitModule.default;
-    const limit = pLimit(concurrencyLimit); // Use the resolved function
+    // --- Process Files Sequentially ---
     const results: FileProcessingResult[] = [];
+    console.log(`\n${logPrefix} Starting SEQUENTIAL test generation for ${sourceFiles.length} file(s)...`);
 
-    console.log(`\n${logPrefix} Starting test generation for ${sourceFiles.length} file(s)...`);
-
+    /**
+     * Inner function to process a single file and update the results array.
+     * This function reads the source code, calls Gemini to generate tests,
+     * extracts the generated code, and writes it to the corresponding test file.
+     * Errors during processing are caught and logged, and the result is recorded.
+     *
+     * @param sourceFilePath - The absolute path to the source file to process.
+     */
     const fileProcessor = async (sourceFilePath: string): Promise<void> => {
         const relativeSourcePath = path.relative(process.cwd(), sourceFilePath).split(path.sep).join('/');
         let resultStatus: FileProcessingResult['status'] = 'processed'; // Default, change on error/update
@@ -124,19 +139,20 @@ export async function execute(args: CliArguments): Promise<void> {
             console.log(`  ${logPrefix} Processing: ${relativeSourcePath}`);
 
             // 1. Derive Output Path
-            const testFilePath = deriveMirroredTestFilePath(sourceFilePath); // Use the new derivation logic
+            const testFilePath = deriveMirroredTestFilePath(sourceFilePath);
             const relativeTestFilePath = path.relative(process.cwd(), testFilePath).split(path.sep).join('/');
 
             // 2. Read Source Code
             const codeToProcess = readSingleFile(sourceFilePath);
             if (codeToProcess.trim() === '') {
                 console.warn(`    ${logPrefix} Skipping empty source file: ${relativeSourcePath}`);
-                results.push({ filePath: relativeSourcePath, status: 'unchanged', message: 'Source file empty' });
-                return;
+                resultStatus = 'unchanged'; // Mark as unchanged/skipped
+                message = 'Source file empty';
+                return; // Exit early for this file
             }
 
             // 3. Invoke Gemini Service
-            const result = await enhanceCodeWithGemini(
+            const result: GeminiEnhancementResult = await enhanceCodeWithGemini(
                 EnhancementType.GenerateTests,
                 codeToProcess,
                 { frameworkHint }
@@ -150,7 +166,6 @@ export async function execute(args: CliArguments): Promise<void> {
             // 5. Extract Code Block
             const extractedCode = extractCodeBlock(result.content);
             if (!extractedCode) {
-                // Log raw response for debugging but treat as an error for file writing
                 console.warn(`    ${logPrefix} ⚠️ Could not extract code block for ${relativeSourcePath}. Raw response was:`);
                 console.warn(`    ${result.content.substring(0, 300)}...`);
                 throw new Error(`Failed to extract valid code block from AI response.`);
@@ -162,7 +177,7 @@ export async function execute(args: CliArguments): Promise<void> {
             }
             const success = writeOutputFile(testFilePath, extractedCode);
             if (!success) {
-                throw new Error(`Failed to write test file.`); // Let catch block handle specifics
+                throw new Error(`Failed to write test file.`);
             }
             message = `Test file generated: ${relativeTestFilePath}`;
             resultStatus = 'updated';
@@ -177,9 +192,10 @@ export async function execute(args: CliArguments): Promise<void> {
         }
     };
 
-    // Create and run tasks
-    const tasks = sourceFiles.map(filePath => limit(() => fileProcessor(filePath)));
-    await Promise.all(tasks); // Wait for all files to be processed
+    // Process files one by one using the inner function
+    for (const sourceFilePath of sourceFiles) {
+        await fileProcessor(sourceFilePath);
+    }
 
     // --- Summarize Results ---
     let successCount = 0;
@@ -188,10 +204,10 @@ export async function execute(args: CliArguments): Promise<void> {
     results.forEach(res => {
         switch (res.status) {
             case 'updated':
-            case 'processed': // Treat processed (no error) as success if not explicitly unchanged/error
+            case 'processed': // Treat generated (but maybe empty) as success if not explicitly unchanged/error
                 successCount++;
                 break;
-            case 'unchanged':
+            case 'unchanged': // Specifically for skipped empty files etc.
                 unchangedCount++;
                 break;
             case 'error':
@@ -208,8 +224,8 @@ export async function execute(args: CliArguments): Promise<void> {
     console.log(`  Errors:              ${errorCount}`);
     console.log("-----------------------------");
 
+    // Indicate overall failure if any file errored
     if (errorCount > 0) {
-        // Indicate overall failure if any file errored
         throw new Error(`${errorCount} error(s) occurred during test generation.`);
     }
 }
