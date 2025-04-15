@@ -10,8 +10,12 @@
     "esModuleInterop": true, // Usually helpful for CJS/ESM interop
     "forceConsistentCasingInFileNames": true,
     "strict": true, // Recommended
-    "skipLibCheck": true // Often needed for smoother builds
+    "skipLibCheck": true, // Often needed for smoother builds
+    "baseUrl": ".", // Sets the base directory for path resolution
+    "paths": {
+      "@app/*": ["src/*"] // Defines the '@app/' alias to point to 'src/'
+    }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "tests"] // Added "tests" directory
 }
