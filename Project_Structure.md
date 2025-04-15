@@ -9,14 +9,16 @@ gemini-poc/
 │   │   ├── commands/
 │   │   │   ├── add-comments.command.ts
 │   │   │   ├── add-path-comment.command.ts
+│   │   │   ├── analyze-architecture.command.ts
 │   │   │   ├── analyze.command.ts
 │   │   │   ├── command.interface.ts
 │   │   │   ├── consolidate.command.ts
 │   │   │   ├── explain.command.ts
 │   │   │   ├── generate-docs.command.ts
 │   │   │   ├── generate-structure-doc.command.ts
+│   │   │   ├── infer-from-data.command.ts
 │   │   │   └── suggest-improvements.command.ts
-│   │   ├── interfaces/
+│   │   ├── types/
 │   │   │   └── infer-from-data.command.ts
 │   │   ├── utils/
 │   │   └── gemini.service.ts
@@ -38,6 +40,8 @@ gemini-poc/
 │   └── index.ts
 ├── .env
 ├── .gitignore
+├── AI Architecture Analyzed.md
 ├── package.json
 ├── Project Architecture.md
+├── Project Tree Structure.md
 └── tsconfig.json
