@@ -7,6 +7,17 @@
 
 import type { Config } from 'jest';
 
+// Import the helper function using require (suitable for CJS runtime context when Jest loads the config)
+const { pathsToModuleNameMapper } = require('ts-jest');
+// Load the tsconfig.json file to read the paths option
+const tsconfig = require("./tsconfig.json");
+// Or using fs/JSON.parse if your tsconfig.json has comments and require fails:
+// import fs from 'fs';
+// const tsconfig = JSON.parse(fs.readFileSync('@/tsconfig.json', 'utf8'));
+
+// Extract the paths object, providing an empty object as fallback
+const tsconfigPaths = tsconfig.compilerOptions?.paths || {};
+
 const config: Config = {
 	// All imported modules in your tests should be mocked automatically
 	// automock: false,
@@ -92,7 +103,11 @@ const config: Config = {
 	// ],
 
 	// A map from regular expressions to module names or to arrays of module names that allow to stub out resources with a single module
-	// moduleNameMapper: {},
+	moduleNameMapper: pathsToModuleNameMapper(tsconfigPaths , {
+		// prefix needs to be set to the project root directory relative to the jest config file location
+		// <rootDir> is Jest's token for the project root
+		prefix: '<rootDir>/'
+	}),
 
 	// An array of regexp pattern strings, matched against all module paths before considered 'visible' to the module loader
 	// modulePathIgnorePatterns: [],

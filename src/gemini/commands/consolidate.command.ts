@@ -2,9 +2,9 @@
 
 import path from 'path';
 import fs from 'fs';
-import { CliArguments } from '../../shared/types/app.type';
-import { getConsolidatedSources } from '../../shared/utils/filesystem.utils';
-import { writeOutputFile } from '../../shared/utils/file-io.utils';
+import { CliArguments } from '@shared/types/app.type';
+import { getConsolidatedSources } from '@shared/utils/filesystem.utils';
+import { writeOutputFile } from '@shared/utils/file-io.utils';
 import { EnhancementType } from '../types/enhancement.type';
 
 const logPrefix = "[Consolidate]";

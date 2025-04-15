@@ -2,9 +2,9 @@
 
 import fs from 'fs';
 import path from 'path';
-import { CliArguments, FileProcessingResult } from '../../shared/types/app.type';
-import { getTargetFiles } from '../../shared/utils/filesystem.utils'; // Use this again
-import { readSingleFile, writeOutputFile } from '../../shared/utils/file-io.utils';
+import { CliArguments, FileProcessingResult } from '@shared/types/app.type';
+import { getTargetFiles } from '@shared/utils/filesystem.utils'; // Use this again
+import { readSingleFile, writeOutputFile } from '@shared/utils/file-io.utils';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service';
 import { EnhancementType } from '../types/enhancement.type'; // Adjusted path
 import { extractCodeBlock } from '../utils/code.extractor';

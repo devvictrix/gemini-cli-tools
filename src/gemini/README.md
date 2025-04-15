@@ -48,10 +48,10 @@ Each command handler (e.g., `addCommentsCmd`) exports an `execute` function that
 *   `p-limit`: For limiting concurrency in file processing (used in `add-comments.command.ts`).
 *   Internal modules:
     *   `../gemini.service.ts`: Communicates with the Gemini AI service.
-    *   `../../shared/utils/filesystem.utils.ts`: Provides utility functions for file system operations.
-    *   `../../shared/utils/file-io.utils.ts`: Provides utility functions for file I/O operations.
-    *   `../../shared/enums/enhancement.type.ts`: Defines the available enhancement types.
-    *   `../../shared/helpers/type-inference.helper.ts`: Utility to infer types.
+    *   `@shared/utils/filesystem.utils.ts`: Provides utility functions for file system operations.
+    *   `@shared/utils/file-io.utils.ts`: Provides utility functions for file I/O operations.
+    *   `@shared/enums/enhancement.type.ts`: Defines the available enhancement types.
+    *   `@shared/helpers/type-inference.helper.ts`: Utility to infer types.
 
 ## Configuration
 

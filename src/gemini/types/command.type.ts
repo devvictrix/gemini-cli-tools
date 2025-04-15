@@ -1,6 +1,6 @@
 // File: src/gemini/commands/command.interface.ts
 
-import { CliArguments } from '../../shared/types/app.type';
+import { CliArguments } from '@shared/types/app.type';
 
 /**
  * Interface defining the contract for a command handler.

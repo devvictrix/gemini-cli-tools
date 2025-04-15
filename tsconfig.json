@@ -12,6 +12,11 @@
     "strict": true,
     "skipLibCheck": true,
     "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"], // Map '@/*' to 'src/*' relative to baseUrl
+      "@config/*": ["src/config/*"],
+      "@shared/*": ["src/shared/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

@@ -2,9 +2,9 @@
 
 import fs from 'fs';
 import path from 'path';
-import { CliArguments } from '../../shared/types/app.type';
-import { getConsolidatedSources } from '../../shared/utils/filesystem.utils';
-import { writeOutputFile } from '../../shared/utils/file-io.utils';
+import { CliArguments } from '@shared/types/app.type';
+import { getConsolidatedSources } from '@shared/utils/filesystem.utils';
+import { writeOutputFile } from '@shared/utils/file-io.utils';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service';
 import { EnhancementType } from '../types/enhancement.type';
 

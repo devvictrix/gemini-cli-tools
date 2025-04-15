@@ -1,21 +1,21 @@
 // File: src/gemini/cli/gemini.handler.ts
 
-import { CliArguments } from '../../shared/types/app.type';
-import { EnhancementType } from '../types/enhancement.type';
+import { CliArguments } from '@shared/types/app.type';
+import { EnhancementType } from '@/gemini/types/enhancement.type';
 
 // --- Import Command Handlers ---
-import * as addCommentsCmd from '../commands/add-comments.command';
-import * as addPathCommentCmd from '../commands/add-path-comment.command';
-import * as analyzeCmd from '../commands/analyze.command';
-import * as consolidateCmd from '../commands/consolidate.command';
-import * as explainCmd from '../commands/explain.command';
-import * as generateDocsCmd from '../commands/generate-docs.command';
-import * as generateStructureDocCmd from '../commands/generate-structure-doc.command';
-import * as inferFromDataCmd from '../commands/infer-from-data.command';
-import * as suggestImprovementsCmd from '../commands/suggest-improvements.command';
-import * as analyzeArchitectureCmd from '../commands/analyze-architecture.command';
-import * as generateModuleReadmeCmd from '../commands/generate-module-readme.command';
-import * as generateTestsCmd from '../commands/generate-tests.command';
+import * as addCommentsCmd from '@/gemini/commands/add-comments.command';
+import * as addPathCommentCmd from '@/gemini/commands/add-path-comment.command';
+import * as analyzeCmd from '@/gemini/commands/analyze.command';
+import * as consolidateCmd from '@/gemini/commands/consolidate.command';
+import * as explainCmd from '@/gemini/commands/explain.command';
+import * as generateDocsCmd from '@/gemini/commands/generate-docs.command';
+import * as generateStructureDocCmd from '@/gemini/commands/generate-structure-doc.command';
+import * as inferFromDataCmd from '@/gemini/commands/infer-from-data.command';
+import * as suggestImprovementsCmd from '@/gemini/commands/suggest-improvements.command';
+import * as analyzeArchitectureCmd from '@/gemini/commands/analyze-architecture.command';
+import * as generateModuleReadmeCmd from '@/gemini/commands/generate-module-readme.command';
+import * as generateTestsCmd from '@/gemini/commands/generate-tests.command';
 const logPrefix = "[GeminiHandler]";
 
 // Map command enum/string (EnhancementType) to the corresponding handler function's execute method.

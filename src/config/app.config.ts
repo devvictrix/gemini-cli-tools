@@ -59,5 +59,5 @@ export const GEMINI_API_ENDPOINT = `${GEMINI_API_BASE}/${GEMINI_MODEL_NAME}:gene
 //Suggestion: Consider using a proper logging library (like Winston or Bunyan) instead of console.log
 // for more robust logging features (e.g., log levels, file rotation, etc.)
 //console.log("Configuration loaded.");
-//console.log(` > Using Gemini Model: ${GEMINI_MODEL_NAME}`);
-//console.log(` > Gemini Endpoint: ${GEMINI_API_ENDPOINT}`);
+console.log(` > Using Gemini Model: ${GEMINI_MODEL_NAME}`);
+console.log(` > Gemini Endpoint: ${GEMINI_API_ENDPOINT}`);

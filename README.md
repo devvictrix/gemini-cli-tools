@@ -2,7 +2,7 @@
 /**
  * @file Entry point for the Gemini CLI application.
  */
-import { runCli } from './gemini/cli/gemini.cli';
+import { runCli } from '@/gemini/cli/gemini.cli';
 
 /**
  * Entry point for the Gemini CLI application.
@@ -65,9 +65,9 @@ export const GEMINI_API_ENDPOINT = `${GEMINI_API_BASE}/${GEMINI_MODEL_NAME}:gene
  */
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { CliArguments } from '../../shared/types/app.type';
-import { runCommandLogic } from './gemini.handler';
-import { EnhancementType } from '../../shared/enums/enhancement.type';
+import { CliArguments } from '@shared/types/app.type';
+import { runCommandLogic } from '@/gemini.handler';
+import { EnhancementType } from '@shared/enums/enhancement.type';
 
 const logPrefix = "[GeminiCLI]";
 
@@ -144,8 +144,8 @@ export async function runCli(processArgs: string[]): Promise<void> {
 /**
  * @file This module acts as the central dispatcher for all Gemini CLI commands.
  */
-import { CliArguments } from '../../shared/types/app.type';
-import { EnhancementType } from '../../shared/enums/enhancement.type';
+import { CliArguments } from '@shared/types/app.type';
+import { EnhancementType } from '@shared/enums/enhancement.type';
 import * as addCommentsCmd from '../commands/add-comments.command';
 // ... other command imports
 import * as suggestImprovementsCmd from '../commands/suggest-improvements.command';

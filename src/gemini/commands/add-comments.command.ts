@@ -2,9 +2,9 @@
 
 import path from 'path';
 import fs from 'fs'; // Needed for statSync if re-validating path
-import { CliArguments, FileProcessingResult } from '../../shared/types/app.type';
-import { getTargetFiles } from '../../shared/utils/filesystem.utils';
-import { readSingleFile, updateFileContent } from '../../shared/utils/file-io.utils';
+import { CliArguments, FileProcessingResult } from '@shared/types/app.type';
+import { getTargetFiles } from '@shared/utils/filesystem.utils';
+import { readSingleFile, updateFileContent } from '@shared/utils/file-io.utils';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service'; // Updated path
 import { EnhancementType } from '../types/enhancement.type';
 
