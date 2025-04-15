@@ -1,4 +1,4 @@
-// tests/example.test.ts
+// File: tests/example.test.ts
 
 describe("Example Test Suite", () => {
     it("should pass a basic test", () => {

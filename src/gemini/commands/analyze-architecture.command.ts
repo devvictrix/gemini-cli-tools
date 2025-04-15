@@ -1,5 +1,4 @@
 // File: src/gemini/commands/analyze-architecture.command.ts
-// Status: Updated (Changed default output filename constant)
 
 import fs from 'fs';
 import path from 'path';

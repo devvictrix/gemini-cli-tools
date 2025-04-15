@@ -1,4 +1,4 @@
-// src/gemini/types/enhancement.type.ts
+// File: src/gemini/types/enhancement.type.ts
 
 /**
  * Enum representing the different types of code enhancement or utility actions

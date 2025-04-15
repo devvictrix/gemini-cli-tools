@@ -1,4 +1,4 @@
-// File: src/gemini/commands/command.interface.ts
+// File: src/gemini/types/command.type.ts
 
 import { CliArguments } from '@shared/types/app.type';
 

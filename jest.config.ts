@@ -1,4 +1,4 @@
-// jest.config.ts
+// File: jest.config.ts
 
 /**
  * For a detailed explanation regarding each configuration property, visit:

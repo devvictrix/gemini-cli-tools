@@ -1,5 +1,4 @@
 // File: src/gemini/cli/gemini.cli.ts
-// Status: Updated (Changed default output for AnalyzeArchitecture)
 
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';

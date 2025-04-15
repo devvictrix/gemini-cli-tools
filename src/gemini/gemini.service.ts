@@ -1,5 +1,4 @@
 // File: src/gemini/gemini.service.ts
-// Status: Updated (Added GenerateTests prompt and handling)
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import { GEMINI_API_ENDPOINT, GEMINI_API_KEY, GEMINI_MODEL_NAME } from '../config/app.config';

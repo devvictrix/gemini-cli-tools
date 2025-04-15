@@ -1,4 +1,5 @@
-// src/gemini/commands/infer-from-data.command.ts
+// File: src/gemini/commands/infer-from-data.command.ts
+
 import path from 'path';
 import fs from 'fs'; // Used for statSync validation
 import { CliArguments } from '@shared/types/app.type';
