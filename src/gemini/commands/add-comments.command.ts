@@ -10,6 +10,14 @@ import { EnhancementType } from '../../shared/enums/enhancement.type.js';
 
 const logPrefix = "[AddComments]";
 
+/**
+ * Executes the add comments command.  This function orchestrates the process of finding target files,
+ * enhancing them with comments using the Gemini service, and updating the files with the enhanced code.
+ *
+ * @param args - The command line arguments, including the target path, prefix, and command type.
+ * @returns A promise that resolves when the command has completed.
+ * @throws An error if the command type is incorrect, the target path is inaccessible, or if errors occur during file processing.
+ */
 export async function execute(args: CliArguments): Promise<void> {
     // Specific command validation/logic could go here if needed
     if (args.command !== EnhancementType.AddComments) {
@@ -39,6 +47,12 @@ export async function execute(args: CliArguments): Promise<void> {
     const limit = pLimit(concurrencyLimit);
     console.log(`\n${logPrefix} Starting PARALLEL modification action on ${targetFiles.length} file(s)...`);
 
+    /**
+     * Processes a single file, enhancing it with comments from the Gemini service.
+     *
+     * @param absoluteFilePath - The absolute path to the file to process.
+     * @returns A promise that resolves with a FileProcessingResult indicating the outcome of the processing.
+     */
     const fileProcessor = async (absoluteFilePath: string): Promise<FileProcessingResult> => {
         const relativeFilePath = path.relative(process.cwd(), absoluteFilePath).split(path.sep).join('/');
         try {
