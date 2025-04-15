@@ -6,6 +6,18 @@ gemini-poc/
 │   │   ├── cli/
 │   │   │   ├── gemini.cli.ts
 │   │   │   └── gemini.handler.ts
+│   │   ├── commands/
+│   │   │   ├── add-comments.command.ts
+│   │   │   ├── add-path-comment.command.ts
+│   │   │   ├── analyze.command.ts
+│   │   │   ├── command.interface.ts
+│   │   │   ├── consolidate.command.ts
+│   │   │   ├── explain.command.ts
+│   │   │   ├── generate-docs.command.ts
+│   │   │   ├── generate-structure-doc.command.ts
+│   │   │   └── suggest-improvements.command.ts
+│   │   ├── interfaces/
+│   │   │   └── infer-from-data.command.ts
 │   │   ├── utils/
 │   │   └── gemini.service.ts
 │   ├── shared/
