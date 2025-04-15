@@ -181,6 +181,41 @@ export async function runCli(processArgs: string[]): Promise<void> {
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateModuleReadme } as CliArguments)
         )
         // --- End Architecture/Design System Commands ---
+
+        // --- Test Generation Command (New) ---
+        .command( // GenerateTests
+            `${EnhancementType.GenerateTests} <targetPath>`,
+            'Generate unit tests for a specific file or module using AI.',
+            (yargsInstance) => {
+                return yargsInstance
+                    .positional('targetPath', {
+                        describe: 'Path to the source file or module directory to test.',
+                        type: 'string',
+                        demandOption: true,
+                    })
+                    .option('output', {
+                        alias: 'o',
+                        type: 'string',
+                        description: 'Optional: Path to save the generated test file (e.g., src/module/module.test.ts). If omitted, output to console.',
+                        demandOption: false, // Output is optional
+                    })
+                    .option('framework', {
+                        alias: 'f',
+                        type: 'string',
+                        description: 'Testing framework hint for generation (e.g., jest, vitest, mocha).',
+                        default: 'jest', // Default to Jest
+                    })
+                    .option('prefix', { // Keep prefix if targetPath is directory
+                        alias: 'p',
+                        type: 'string',
+                        description: 'Optional filename prefix filter (if targetPath is a directory).',
+                        demandOption: false,
+                    });
+            },
+            // Pass the framework option along in argv
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateTests } as CliArguments)
+        )
+        // --- End Test Generation Command ---
         .demandCommand(1, 'Please specify a valid command (action).')
         .strict()
         .help()

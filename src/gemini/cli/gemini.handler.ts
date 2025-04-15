@@ -15,6 +15,7 @@ import * as inferFromDataCmd from '../commands/infer-from-data.command.js';
 import * as suggestImprovementsCmd from '../commands/suggest-improvements.command.js';
 import * as analyzeArchitectureCmd from '../commands/analyze-architecture.command.js';
 import * as generateModuleReadmeCmd from '../commands/generate-module-readme.command.js';
+import * as generateTestsCmd from '../commands/generate-tests.command.js'; // <<< Added Import
 
 const logPrefix = "[GeminiHandler]";
 
@@ -31,6 +32,7 @@ const commandHandlerMap: { [key in EnhancementType]: (args: CliArguments) => Pro
     [EnhancementType.SuggestImprovements]: suggestImprovementsCmd.execute,
     [EnhancementType.AnalyzeArchitecture]: analyzeArchitectureCmd.execute,
     [EnhancementType.GenerateModuleReadme]: generateModuleReadmeCmd.execute,
+    [EnhancementType.GenerateTests]: generateTestsCmd.execute,
 };
 
 /**

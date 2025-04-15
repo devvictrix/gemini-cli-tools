@@ -1,10 +1,11 @@
 // File: src/gemini/gemini.service.ts
-// Status: Updated (Added GenerateModuleReadme prompt and handling)
+// Status: Updated (Added GenerateTests prompt and handling)
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import { GEMINI_API_ENDPOINT, GEMINI_API_KEY, GEMINI_MODEL_NAME } from '../config/app.config.js';
+// Corrected path assuming enhancement.type.ts is now in shared/enums
 import { EnhancementType } from './types/enhancement.type.js';
-import { extractCodeBlock } from './utils/code.extractor.js'; // Assuming this utility exists and is correct
+import { extractCodeBlock } from './utils/code.extractor.js'; // Need this utility
 
 // Log config when service is initialized
 console.log(`[GeminiService] Initialized. Model: ${GEMINI_MODEL_NAME}, Endpoint: ${GEMINI_API_ENDPOINT}`);
@@ -13,28 +14,37 @@ console.log(`[GeminiService] Initialized. Model: ${GEMINI_MODEL_NAME}, Endpoint:
  * Represents the result of a Gemini enhancement operation.
  */
 export interface GeminiEnhancementResult {
-    type: 'code' | 'text' | 'error';
+    type: 'code' | 'text' | 'error'; // Keep 'code' for AddComments? Or unify all to text? Let's keep for now.
     content: string | null;
+}
+
+// Optional: Define a type for extra options passed to enhanceCodeWithGemini
+interface GeminiEnhancementOptions {
+    frameworkHint?: string;
 }
 
 /**
  * Generates a prompt for the Gemini API based on the enhancement type and code.
  * @param {EnhancementType} enhancement - The type of enhancement requested.
  * @param {string} code - The code to be enhanced or analyzed.
+ * @param {GeminiEnhancementOptions} [options] - Optional parameters like framework hint.
  * @returns {string} The generated prompt for the Gemini API.
  * @throws {Error} If no prompt is defined for an API-dependent enhancement type.
  */
-function generatePrompt(enhancement: EnhancementType, code: string): string {
+function generatePrompt(enhancement: EnhancementType, code: string, options?: GeminiEnhancementOptions): string {
     console.log(`[GeminiService] Generating prompt for enhancement type: ${enhancement}`);
-    let moduleName = "this module"; // Default placeholder
-    // Attempt to extract a potential module name from the first file path comment
+    let moduleName = "this module"; // Default placeholder for module-specific prompts
     const firstFileMatch = code.match(/^\s*\/\/\s*File:\s*.*?\/([^\/]+)\/[^\/]+\s*$/m);
     if (firstFileMatch && firstFileMatch[1]) {
         moduleName = `'${firstFileMatch[1]}' module`;
     }
 
+    // Get framework hint, default to jest if not provided
+    const framework = options?.frameworkHint ?? 'jest';
+
     switch (enhancement) {
         case EnhancementType.AddComments:
+            // ... (prompt remains the same)
             return `
 Review the following TypeScript/JavaScript code. Add comprehensive TSDoc/JSDoc comments to all functions, classes, methods, and exported variables. Add clarifying inline comments for complex logic blocks where necessary. Ensure comments explain the 'why' not just the 'what'. Respond ONLY with the fully commented code block, enclosed in \`\`\`typescript ... \`\`\`. Do not include any explanatory text before or after the code block.
 
@@ -44,6 +54,7 @@ ${code}
 \`\`\`
 `;
         case EnhancementType.Analyze:
+            // ... (prompt remains the same)
             return `
 Analyze the following code snippet or consolidated codebase. Focus on:
 1.  **Code Quality:** Identify potential issues like code smells, overly complex functions, or areas violating SOLID principles.
@@ -57,6 +68,7 @@ ${code}
 \`\`\`
 `;
         case EnhancementType.Explain:
+            // ... (prompt remains the same)
             return `
 Explain the following TypeScript/JavaScript code in simple terms. Describe its primary purpose, inputs, outputs, and the main steps it performs. Target the explanation towards a developer who is new to this specific code.
 
@@ -66,6 +78,7 @@ ${code}
 \`\`\`
 `;
         case EnhancementType.SuggestImprovements:
+            // ... (prompt remains the same)
             return `
 Act as a senior software engineer reviewing the following code. Provide specific, actionable suggestions for improvement. Focus on areas like:
 - Readability and Clarity
@@ -81,6 +94,7 @@ ${code}
 \`\`\`
 `;
         case EnhancementType.GenerateDocs: // For root project README
+            // ... (prompt remains the same)
             return `
 Analyze the following consolidated codebase, likely representing a significant part or the whole of a project. Generate a comprehensive README.md content in Markdown format. The README should include:
 1.  **Project Title/Name:** (Infer if possible, otherwise use a placeholder)
@@ -97,6 +111,7 @@ ${code}
 \`\`\`
 `;
         case EnhancementType.AnalyzeArchitecture:
+            // ... (prompt remains the same)
             return `
 Analyze the overall software architecture of the following consolidated codebase, representing a project or a major subsystem. Provide the analysis in Markdown format, suitable for inclusion in a 'AI_Architecture_Analyzed.md' file. Focus on:
 
@@ -114,7 +129,8 @@ Consolidated Codebase:
 ${code}
 \`\`\`
 `;
-        case EnhancementType.GenerateModuleReadme: // <<< New Prompt
+        case EnhancementType.GenerateModuleReadme:
+            // ... (prompt remains the same)
             return `
 The following consolidated code represents the contents of a specific software module (${moduleName}) within a larger project. Analyze this code and generate a concise, well-structured README.md file content in Markdown format specifically for this module.
 
@@ -130,6 +146,24 @@ The README should focus *only* on the provided code and include:
 Structure the output clearly using Markdown headings (e.g., \`## Purpose\`, \`## Usage\`). Be concise and focus on information essential for another developer to understand and use this specific module. Do not invent features not present in the code.
 
 Module Code:
+\`\`\`typescript
+${code}
+\`\`\`
+`;
+        case EnhancementType.GenerateTests: // <<< New Prompt
+            return `
+Analyze the following TypeScript code, which represents a component, function, or module. Generate comprehensive unit tests for it using the '${framework}' testing framework syntax.
+
+Follow these guidelines:
+- Focus on testing the publicly exported functions, classes, methods, and variables.
+- Aim for good test coverage of different scenarios, including valid inputs, edge cases, and potential error conditions.
+- Use clear and descriptive test names (e.g., \`it('should return the sum of two numbers')\`).
+- Include necessary imports for the code being tested and the '${framework}' framework (e.g., \`import { describe, it, expect } from '${framework === 'vitest' ? 'vitest' : '@jest/globals'}';\`).
+- If the code has external dependencies (imports from other modules/libraries), create simple mocks or stubs for them within the test file using ${framework === 'vitest' ? '`vi.fn()` or `vi.mock()`' : '`jest.fn()` or `jest.mock()`'}. Mock only what's necessary for the unit tests to run in isolation.
+- Organize tests using \`describe\` blocks for different functions or classes.
+- Respond ONLY with the complete test file content, enclosed in a single Markdown code block like \`\`\`typescript ... \`\`\`. Do not include any explanatory text before or after the code block.
+
+Source Code to Test:
 \`\`\`typescript
 ${code}
 \`\`\`
@@ -161,28 +195,41 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
         const response: AxiosResponse = await axios.post(GEMINI_API_ENDPOINT, requestData, config);
         const candidate = response.data?.candidates?.[0];
 
+        // --- Finish Reason Handling ---
         if (candidate?.finishReason && candidate.finishReason !== "STOP") {
             console.warn(`[GeminiService] Warning: Response generation finished due to reason: ${candidate.finishReason}.`);
+            let blockMessage = `// Gemini Response Issue: ${candidate.finishReason}\n// Generation may be incomplete or blocked.`;
             if (candidate.finishReason === "SAFETY") {
                 console.error("[GeminiService] Response blocked due to safety concerns. Cannot proceed.");
-                return `## README Generation Blocked\n\nError: The generated content was blocked by Gemini's safety filters (${candidate.finishReason}). Please review the module code for potentially problematic content or try adjusting the prompt/code.`; // Return specific message
+                blockMessage = `// Gemini Safety Block: The generated content was blocked due to safety filters (${candidate.finishReason}).`;
+                // Return the block message directly as content
+                return blockMessage;
             }
             if (candidate.finishReason === "MAX_TOKENS") {
                 console.warn("[GeminiService] Response may be truncated due to maximum token limit.");
+                // Content might still be usable, so proceed but log warning
             }
             if (candidate.finishReason === "RECITATION") {
                 console.warn("[GeminiService] Response may be incomplete due to recitation limits.");
             }
+            // Include the reason in the response if it's not a hard block like SAFETY?
+            // Maybe prepend a comment to the actual responseText below?
         }
 
+        // --- Get Response Text ---
         const responseText = candidate?.content?.parts?.[0]?.text;
+
         if (responseText) {
             console.log(`[GeminiService] Received response (${responseText.trim().length} chars).`);
+            // Prepend warning if finished abnormally but not due to safety
+            if (candidate?.finishReason && candidate.finishReason !== "STOP" && candidate.finishReason !== "SAFETY") {
+                return `// Gemini Warning: Finish Reason - ${candidate.finishReason}\n${responseText.trim()}`;
+            }
             return responseText.trim();
         } else if (candidate?.finishReason === "SAFETY") {
-            return `## README Generation Blocked\n\nError: The generated content was blocked by Gemini's safety filters (${candidate.finishReason}).`;
-        }
-        else {
+            // Already handled above, returns block message
+            return `// Gemini Safety Block: The generated content was blocked due to safety filters (${candidate.finishReason}).`;
+        } else {
             console.warn("[GeminiService] Received empty or incomplete response text from Gemini API. Check finishReason and potential errors.");
             console.warn(`[GeminiService] Finish Reason: ${candidate?.finishReason}, Safety Ratings: ${JSON.stringify(candidate?.safetyRatings)}`);
             return null; // Indicate failure
@@ -194,7 +241,7 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
         if (axiosError.response) {
             console.error(`  Status: ${axiosError.response.status}`);
             console.error(`  Data: ${JSON.stringify(axiosError.response.data, null, 2)}`);
-            if (axiosError.response.status === 400) { console.error("  Suggestion: Check API key, request format, or prompt content."); }
+            if (axiosError.response.status === 400) { console.error("  Suggestion: Check API key, request format, or prompt content (possible policy violation)."); }
             else if (axiosError.response.status === 429) { console.error("  Suggestion: Rate limit exceeded. Wait before retrying."); }
             else if (axiosError.response.status >= 500) { console.error("  Suggestion: Server error on Google's side. Try again later."); }
         } else if (axiosError.request) {
@@ -208,13 +255,17 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
 
 /**
  * Orchestrates enhancing code or generating text via the Gemini API.
+ * Added optional 'options' parameter for framework hints etc.
+ *
  * @param {EnhancementType} enhancementType - The type of enhancement.
  * @param {string} code - The code to be enhanced/analyzed.
+ * @param {GeminiEnhancementOptions} [options] - Optional parameters.
  * @returns {Promise<GeminiEnhancementResult>} The result.
  */
 export async function enhanceCodeWithGemini(
     enhancementType: EnhancementType,
-    code: string
+    code: string,
+    options?: GeminiEnhancementOptions // <<< Added options parameter
 ): Promise<GeminiEnhancementResult> {
 
     // Define which types require an API call
@@ -225,50 +276,57 @@ export async function enhanceCodeWithGemini(
         EnhancementType.SuggestImprovements,
         EnhancementType.GenerateDocs,
         EnhancementType.AnalyzeArchitecture,
-        EnhancementType.GenerateModuleReadme, // <<< Added
+        EnhancementType.GenerateModuleReadme,
+        EnhancementType.GenerateTests, // <<< Added
     ].includes(enhancementType);
 
     if (!usesApi) {
-        // This path should ideally not be taken if called correctly, but good safeguard.
         console.warn(`[GeminiService] Enhancement type ${enhancementType} was passed to enhanceCodeWithGemini but does not use the API.`);
         return { type: 'error', content: `Internal Error: Enhancement type ${enhancementType} is processed locally and should not call this function.` };
     }
 
-    // Define expected output type
+    // Define expected output type from Gemini *before* extraction
     const expectsCode = [EnhancementType.AddComments].includes(enhancementType);
+    // For GenerateTests, we expect text containing a code block, not *just* code.
     const expectsText = [
         EnhancementType.Analyze,
         EnhancementType.Explain,
         EnhancementType.SuggestImprovements,
         EnhancementType.GenerateDocs,
         EnhancementType.AnalyzeArchitecture,
-        EnhancementType.GenerateModuleReadme, // <<< Added
+        EnhancementType.GenerateModuleReadme,
+        EnhancementType.GenerateTests, // <<< Added here
     ].includes(enhancementType);
 
-    const prompt = generatePrompt(enhancementType, code); // Generate the specific prompt
+    // Pass options (like frameworkHint) to prompt generation
+    const prompt = generatePrompt(enhancementType, code, options);
 
     const rawResponse = await callGeminiApi(prompt);
 
     if (rawResponse === null) {
-        // callGeminiApi already logged the details
         return { type: 'error', content: 'Failed to get a valid response from Gemini API.' };
     }
 
     // Process based on expected type
-    if (expectsCode) {
-        // ... (logic remains the same)
+    if (expectsCode) { // Primarily for AddComments where we want *only* code back
+        // Use the utility to extract the code block
         const extractedCode = extractCodeBlock(rawResponse);
         if (extractedCode) {
+            // We might still want to check for Gemini warnings prepended to the block
+            if (rawResponse.startsWith('// Gemini Warning:') || rawResponse.startsWith('// Gemini Safety Block:')) {
+                console.warn(`[GeminiService] Note: Gemini response included a warning/block message before the code for ${enhancementType}.`);
+                // Decide whether to return the prepended message or just the code. Let's return just the code for AddComments.
+            }
             return { type: 'code', content: extractedCode };
         } else {
-            console.warn("[GeminiService] Could not extract code block from Gemini response for 'AddComments'. Returning raw response.");
-            return { type: 'text', content: rawResponse }; // Treat as text if extraction fails
+            console.warn(`[GeminiService] Could not extract code block from Gemini response for '${enhancementType}'. Returning raw response as text.`);
+            return { type: 'text', content: rawResponse }; // Fallback to text
         }
     } else if (expectsText) {
-        // For text-based results, return the raw response directly
+        // For text-based results (including GenerateTests where we expect text containing code), return the raw response
         return { type: 'text', content: rawResponse };
     } else {
-        // This state should be unreachable if expectsCode/expectsText covers all usesApi types
+        // This state should be unreachable
         console.error(`[GeminiService] Internal Error: Unhandled enhancement type in response processing: ${enhancementType}. Expected code or text.`);
         return { type: 'error', content: `Internal Error: Unhandled enhancement type ${enhancementType}` };
     }

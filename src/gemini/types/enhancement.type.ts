@@ -1,5 +1,4 @@
-// File: src/shared/enums/enhancement.type.ts
-// Status: Updated
+// src/gemini/types/enhancement.type.ts
 
 /**
  * Enum representing the different types of code enhancement or utility actions
@@ -20,7 +19,9 @@ export enum EnhancementType {
 	/** Provide an AI-driven analysis of the project's architecture. */
 	AnalyzeArchitecture = 'AnalyzeArchitecture',
 	/** Generate a README.md file within a specific module directory. */
-	GenerateModuleReadme = 'GenerateModuleReadme', // <<< Added Here
+	GenerateModuleReadme = 'GenerateModuleReadme',
+	/** Generate unit tests for a specific file or module. */
+	GenerateTests = 'GenerateTests', // <<< Added Here
 	// DescribeComponent = 'DescribeComponent', // Deferred
 
 	// --- Local Code/File Manipulations ---
@@ -33,7 +34,7 @@ export enum EnhancementType {
 	/** Generate a Markdown file representing the project directory structure (Local Action). */
 	GenerateStructureDoc = 'GenerateStructureDoc',
 
-	// Add more types here in the future (e.g., GenerateTests, Refactor)
+	// Add more types here in the future
 }
 
 /**
