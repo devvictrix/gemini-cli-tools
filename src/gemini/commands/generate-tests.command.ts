@@ -2,13 +2,12 @@
 
 import fs from 'fs';
 import path from 'path';
-import pLimit from 'p-limit'; // Import p-limit for parallel processing
-import { CliArguments, FileProcessingResult } from '../../shared/types/app.type.js';
-import { getTargetFiles } from '../../shared/utils/filesystem.utils.js'; // Use this again
-import { readSingleFile, writeOutputFile } from '../../shared/utils/file-io.utils.js';
-import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service.js';
-import { EnhancementType } from '../types/enhancement.type.js'; // Adjusted path
-import { extractCodeBlock } from '../utils/code.extractor.js';
+import { CliArguments, FileProcessingResult } from '../../shared/types/app.type';
+import { getTargetFiles } from '../../shared/utils/filesystem.utils'; // Use this again
+import { readSingleFile, writeOutputFile } from '../../shared/utils/file-io.utils';
+import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service';
+import { EnhancementType } from '../types/enhancement.type'; // Adjusted path
+import { extractCodeBlock } from '../utils/code.extractor';
 
 const logPrefix = "[GenerateTests]";
 const TEST_DIR_NAME = 'tests'; // Top-level directory for tests
@@ -105,7 +104,9 @@ export async function execute(args: CliArguments): Promise<void> {
 
     // --- Process Files (Potentially in Parallel) ---
     const concurrencyLimit = 5; // Adjust as needed
-    const limit = pLimit(concurrencyLimit);
+    // Dynamically import p-limit as it's an ESM module
+    const { default: pLimit } = await import('p-limit');
+    const limit = pLimit(concurrencyLimit); // Use the dynamically imported function
     const results: FileProcessingResult[] = [];
 
     console.log(`\n${logPrefix} Starting test generation for ${sourceFiles.length} file(s)...`);

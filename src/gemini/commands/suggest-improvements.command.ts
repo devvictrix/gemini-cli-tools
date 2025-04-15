@@ -2,11 +2,11 @@
 
 import fs from 'fs';
 import path from 'path';
-import { CliArguments } from '../../shared/types/app.type.js';
-import { getConsolidatedSources, getTargetFiles } from '../../shared/utils/filesystem.utils.js';
-import { readSingleFile } from '../../shared/utils/file-io.utils.js';
-import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service.js';
-import { EnhancementType } from '../types/enhancement.type.js';
+import { CliArguments } from '../../shared/types/app.type';
+import { getConsolidatedSources, getTargetFiles } from '../../shared/utils/filesystem.utils';
+import { readSingleFile } from '../../shared/utils/file-io.utils';
+import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service';
+import { EnhancementType } from '../types/enhancement.type';
 
 const logPrefix = "[SuggestImprovements]";
 

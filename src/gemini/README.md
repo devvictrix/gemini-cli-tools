@@ -28,7 +28,7 @@ Example:
 
 ```typescript
 // From cli/gemini.handler.ts:
-import * as addCommentsCmd from '../commands/add-comments.command.js';
+import * as addCommentsCmd from '../commands/add-comments.command';
 
 // ...
 

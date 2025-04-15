@@ -1,6 +1,6 @@
 // File: src/shared/types/app.type.ts
 
-import { EnhancementType } from '../../gemini/types/enhancement.type.js';
+import { EnhancementType } from '../../gemini/types/enhancement.type';
 
 /**
  * Represents the unified command-line arguments passed to the application,

@@ -1,6 +1,6 @@
 // File: src/index.ts
 
-import { runCli } from './gemini/cli/gemini.cli.js';
+import { runCli } from './gemini/cli/gemini.cli';
 
 /**
  * Entry point for the Gemini CLI application.

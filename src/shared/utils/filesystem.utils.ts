@@ -2,7 +2,7 @@
 
 import { promises as fs } from "fs";
 import * as path from "path";
-import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from '../constants/filesystem.constants.js'; // Correct path
+import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from '../constants/filesystem.constants'; // Correct path
 import { filterLines, getAllFiles } from "../helpers/filesystem.helper.js"; // Correct path
 
 const logPrefix = "[FileSystemUtil]"; // Renamed prefix for clarity

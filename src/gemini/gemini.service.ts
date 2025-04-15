@@ -2,10 +2,10 @@
 // Status: Updated (Added GenerateTests prompt and handling)
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
-import { GEMINI_API_ENDPOINT, GEMINI_API_KEY, GEMINI_MODEL_NAME } from '../config/app.config.js';
+import { GEMINI_API_ENDPOINT, GEMINI_API_KEY, GEMINI_MODEL_NAME } from '../config/app.config';
 // Corrected path assuming enhancement.type.ts is now in shared/enums
-import { EnhancementType } from './types/enhancement.type.js';
-import { extractCodeBlock } from './utils/code.extractor.js'; // Need this utility
+import { EnhancementType } from './types/enhancement.type';
+import { extractCodeBlock } from './utils/code.extractor'; // Need this utility
 
 // Log config when service is initialized
 console.log(`[GeminiService] Initialized. Model: ${GEMINI_MODEL_NAME}, Endpoint: ${GEMINI_API_ENDPOINT}`);

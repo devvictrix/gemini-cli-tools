@@ -1,10 +1,10 @@
 // src/gemini/commands/infer-from-data.command.ts
 import path from 'path';
 import fs from 'fs'; // Used for statSync validation
-import { CliArguments } from '../../shared/types/app.type.js';
-import { readSingleFile } from '../../shared/utils/file-io.utils.js'; // Specific import for reading
-import { inferTypesFromData } from '../../shared/helpers/type-inference.helper.js'; // Specific import for inference logic
-import { EnhancementType } from '../types/enhancement.type.js';
+import { CliArguments } from '../../shared/types/app.type';
+import { readSingleFile } from '../../shared/utils/file-io.utils'; // Specific import for reading
+import { inferTypesFromData } from '../../shared/helpers/type-inference.helper'; // Specific import for inference logic
+import { EnhancementType } from '../types/enhancement.type';
 
 const logPrefix = "[InferFromData]";
 
