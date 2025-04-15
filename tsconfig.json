@@ -2,20 +2,17 @@
 
 {
   "compilerOptions": {
-    "module": "NodeNext", // Specify ESM output compatible with Node.js
-    "moduleResolution": "NodeNext", // Use Node's modern module resolution
-    "target": "ES2020", // Or newer (ES2020 supports top-level await used in main)
-    "outDir": "./dist", // Your existing output directory
-    "rootDir": "./src", // Your existing source directory
-    "esModuleInterop": true, // Usually helpful for CJS/ESM interop
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "strict": true, // Recommended
-    "skipLibCheck": true, // Often needed for smoother builds
-    "baseUrl": ".", // Sets the base directory for path resolution
-    "paths": {
-      "@app/*": ["src/*"] // Defines the '@app/' alias to point to 'src/'
-    }
+    "strict": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts", "tests"] // Added "tests" directory
+  "exclude": ["node_modules", "dist"]
 }
