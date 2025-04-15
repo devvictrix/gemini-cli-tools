@@ -10,6 +10,9 @@ import { EnhancementType } from '@/gemini/types/enhancement.type';
 
 const logPrefix = "[AddComments]";
 
+// Initiate dynamic import at module scope. This returns a promise.
+const pLimitPromise = import('p-limit');
+
 /**
  * Executes the add comments command.  This function orchestrates the process of finding target files,
  * enhancing them with comments using the Gemini service, and updating the files with the enhanced code.
@@ -44,9 +47,11 @@ export async function execute(args: CliArguments): Promise<void> {
 
     // --- PARALLEL MODIFICATION FLOW ---
     const concurrencyLimit = 5;
-    // Dynamically import p-limit as it's an ESM module
-    const { default: pLimit } = await import('p-limit');
-    const limit = pLimit(concurrencyLimit); // Use the dynamically imported function
+    // Await the promise initiated at the top level
+    const pLimitModule = await pLimitPromise;
+    // Access the default export from the resolved module
+    const pLimit = pLimitModule.default;
+    const limit = pLimit(concurrencyLimit); // Use the resolved function
     console.log(`\n${logPrefix} Starting PARALLEL modification action on ${targetFiles.length} file(s)...`);
 
     /**

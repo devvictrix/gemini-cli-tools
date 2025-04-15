@@ -1,5 +1,6 @@
 // File: src/index.ts
 
+import 'module-alias/register';
 import { runCli } from '@/gemini/cli/gemini.cli';
 
 /**

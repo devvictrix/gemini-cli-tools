@@ -7,10 +7,12 @@ import { getTargetFiles } from '@shared/utils/filesystem.utils'; // Use this aga
 import { readSingleFile, writeOutputFile } from '@shared/utils/file-io.utils';
 import { enhanceCodeWithGemini } from '@/gemini/gemini.service';
 import { EnhancementType } from '@/gemini/types/enhancement.type'; // Adjusted path
-import { extractCodeBlock } from '../utils/code.extractor';
+import { extractCodeBlock } from '@/gemini/utils/code.extractor';
 
 const logPrefix = "[GenerateTests]";
 const TEST_DIR_NAME = 'tests'; // Top-level directory for tests
+// Initiate dynamic import at module scope. This returns a promise.
+const pLimitPromise = import('p-limit');
 
 /**
  * Calculates the mirrored test file path under the top-level test directory.
@@ -104,9 +106,11 @@ export async function execute(args: CliArguments): Promise<void> {
 
     // --- Process Files (Potentially in Parallel) ---
     const concurrencyLimit = 5; // Adjust as needed
-    // Dynamically import p-limit as it's an ESM module
-    const { default: pLimit } = await import('p-limit');
-    const limit = pLimit(concurrencyLimit); // Use the dynamically imported function
+    // Await the promise initiated at the top level
+    const pLimitModule = await pLimitPromise;
+    // Access the default export from the resolved module
+    const pLimit = pLimitModule.default;
+    const limit = pLimit(concurrencyLimit); // Use the resolved function
     const results: FileProcessingResult[] = [];
 
     console.log(`\n${logPrefix} Starting test generation for ${sourceFiles.length} file(s)...`);
