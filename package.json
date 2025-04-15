@@ -2,6 +2,7 @@
   "name": "gemini-poc",
   "version": "1.0.0",
   "description": "Proof of concept using Google Gemini API for code tasks",
+  "type": "module",
   "main": "dist/app.js",
   "scripts": {
     "clean": "rimraf ./dist",
