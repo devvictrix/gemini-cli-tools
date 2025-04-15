@@ -150,7 +150,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
                         alias: 'o',
                         type: 'string',
                         description: 'Path for the output Architecture Analysis Markdown file.',
-                        default: 'AI Architecture Analyzed.md', // <<< Changed Default Name
+                        default: 'AI_Architecture_Analyzed.md', // <<< Changed Default Name
                     })
                     .option('prefix', { // Keep prefix option available if needed
                         alias: 'p',

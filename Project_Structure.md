@@ -40,7 +40,7 @@ gemini-poc/
 │   └── index.ts
 ├── .env
 ├── .gitignore
-├── AI Architecture Analyzed.md
+├── AI_Architecture_Analyzed.md
 ├── package.json
 ├── Project Architecture.md
 ├── Project Tree Structure.md
