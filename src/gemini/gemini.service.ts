@@ -4,8 +4,8 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import { GEMINI_API_ENDPOINT, GEMINI_API_KEY, GEMINI_MODEL_NAME } from '../config/app.config';
 // Corrected path assuming enhancement.type.ts is now in shared/enums
-import { EnhancementType } from '@/types/enhancement.type';
-import { extractCodeBlock } from '@/utils/code.extractor'; // Need this utility
+import { EnhancementType } from '@/gemini/types/enhancement.type';
+import { extractCodeBlock } from '@/gemini/utils/code.extractor'; // Need this utility
 
 // Log config when service is initialized
 console.log(`[GeminiService] Initialized. Model: ${GEMINI_MODEL_NAME}, Endpoint: ${GEMINI_API_ENDPOINT}`);

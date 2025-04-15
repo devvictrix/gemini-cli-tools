@@ -4,7 +4,7 @@ import fs from 'fs'; // Used for statSync validation
 import { CliArguments } from '@shared/types/app.type';
 import { readSingleFile } from '@shared/utils/file-io.utils'; // Specific import for reading
 import { inferTypesFromData } from '@shared/helpers/type-inference.helper'; // Specific import for inference logic
-import { EnhancementType } from '../types/enhancement.type';
+import { EnhancementType } from '@/gemini/types/enhancement.type';
 
 const logPrefix = "[InferFromData]";
 

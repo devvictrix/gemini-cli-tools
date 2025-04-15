@@ -5,8 +5,8 @@ import path from 'path';
 import { CliArguments } from '@shared/types/app.type';
 import { getConsolidatedSources, getTargetFiles } from '@shared/utils/filesystem.utils';
 import { readSingleFile, writeOutputFile } from '@shared/utils/file-io.utils';
-import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service';
-import { EnhancementType } from '../types/enhancement.type';
+import { enhanceCodeWithGemini, GeminiEnhancementResult } from '@/gemini/gemini.service';
+import { EnhancementType } from '@/gemini/types/enhancement.type';
 
 const logPrefix = "[GenerateDocs]"; // Define a constant for logging prefix, making logs easier to trace.
 

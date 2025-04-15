@@ -5,8 +5,8 @@ import path from 'path';
 import { CliArguments } from '@shared/types/app.type';
 import { getConsolidatedSources } from '@shared/utils/filesystem.utils';
 import { writeOutputFile } from '@shared/utils/file-io.utils';
-import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service';
-import { EnhancementType } from '../types/enhancement.type';
+import { enhanceCodeWithGemini, GeminiEnhancementResult } from '@/gemini/gemini.service';
+import { EnhancementType } from '@/gemini/types/enhancement.type';
 
 const logPrefix = "[GenerateModuleReadme]";
 const OUTPUT_FILENAME = 'README.md'; // Fixed output filename

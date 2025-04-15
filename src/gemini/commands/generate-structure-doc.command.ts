@@ -5,7 +5,7 @@ import * as path from 'path';
 import { CliArguments } from '@shared/types/app.type';
 import { EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from '@shared/constants/filesystem.constants';
 import { writeOutputFile } from '@shared/utils/file-io.utils';
-import { EnhancementType } from '../types/enhancement.type';
+import { EnhancementType } from '@/gemini/types/enhancement.type';
 
 const logPrefix = "[GenerateStructureDoc]"; // Prefix for all log messages from this module
 

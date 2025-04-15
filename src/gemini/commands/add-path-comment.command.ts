@@ -5,7 +5,7 @@ import fs from 'fs'; // Needed for statSync if re-validating path
 import { CliArguments } from '@shared/types/app.type';
 import { getTargetFiles } from '@shared/utils/filesystem.utils';
 import { readSingleFile, updateFileContent } from '@shared/utils/file-io.utils';
-import { EnhancementType } from '../types/enhancement.type';
+import { EnhancementType } from '@/gemini/types/enhancement.type';
 
 const logPrefix = "[AddPathComment]";
 
