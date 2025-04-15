@@ -2,12 +2,9 @@
 
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-// --- ESM Compatibility ---
-// Handle ESM paths for dotenv compatibility.  This is crucial when using `import` syntax.
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// --- CJS Compatibility ---
+// In CommonJS, __dirname is a global variable representing the directory of the current module.
 
 // --- Load Environment Variables ---
 // Load environment variables from the .env file in the project root directory.
