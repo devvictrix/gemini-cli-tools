@@ -10,7 +10,7 @@ import * as consolidateCmd from '../commands/consolidate.command.js';
 import * as explainCmd from '../commands/explain.command.js';
 import * as generateDocsCmd from '../commands/generate-docs.command.js';
 import * as generateStructureDocCmd from '../commands/generate-structure-doc.command.js';
-import * as inferFromDataCmd from '../commands/infer-from-data.command.js';
+import * as inferFromDataCmd from '../interfaces/infer-from-data.command.js';
 import * as suggestImprovementsCmd from '../commands/suggest-improvements.command.js';
 
 const logPrefix = "[GeminiHandler]";
