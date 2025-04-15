@@ -3,7 +3,7 @@
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import { GEMINI_API_ENDPOINT, GEMINI_API_KEY, GEMINI_MODEL_NAME } from '../config/app.config.js';
-import { EnhancementType } from '../shared/enums/enhancement.type.js';
+import { EnhancementType } from './types/enhancement.type.js';
 import { extractCodeBlock } from './utils/code.extractor.js'; // Assuming this utility exists and is correct
 
 // Log config when service is initialized

@@ -5,7 +5,7 @@ import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { CliArguments } from '../../shared/types/app.type.js';
 import { runCommandLogic } from './gemini.handler.js';
-import { EnhancementType } from '../../shared/enums/enhancement.type.js';
+import { EnhancementType } from '../types/enhancement.type.js';
 
 const logPrefix = "[GeminiCLI]";
 

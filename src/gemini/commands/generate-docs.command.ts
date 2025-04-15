@@ -6,7 +6,7 @@ import { CliArguments } from '../../shared/types/app.type.js';
 import { getConsolidatedSources, getTargetFiles } from '../../shared/utils/filesystem.utils.js';
 import { readSingleFile, writeOutputFile } from '../../shared/utils/file-io.utils.js';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service.js';
-import { EnhancementType } from '../../shared/enums/enhancement.type.js';
+import { EnhancementType } from '../types/enhancement.type.js';
 
 const logPrefix = "[GenerateDocs]"; // Define a constant for logging prefix, making logs easier to trace.
 

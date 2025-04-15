@@ -5,7 +5,7 @@ import fs from 'fs';
 import { CliArguments } from '../../shared/types/app.type.js';
 import { getConsolidatedSources } from '../../shared/utils/filesystem.utils.js';
 import { writeOutputFile } from '../../shared/utils/file-io.utils.js';
-import { EnhancementType } from '../../shared/enums/enhancement.type.js';
+import { EnhancementType } from '../types/enhancement.type.js';
 
 const logPrefix = "[Consolidate]";
 

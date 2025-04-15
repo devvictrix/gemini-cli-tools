@@ -4,7 +4,7 @@ import fs from 'fs'; // Used for statSync validation
 import { CliArguments } from '../../shared/types/app.type.js';
 import { readSingleFile } from '../../shared/utils/file-io.utils.js'; // Specific import for reading
 import { inferTypesFromData } from '../../shared/helpers/type-inference.helper.js'; // Specific import for inference logic
-import { EnhancementType } from '../../shared/enums/enhancement.type.js';
+import { EnhancementType } from '../types/enhancement.type.js';
 
 const logPrefix = "[InferFromData]";
 

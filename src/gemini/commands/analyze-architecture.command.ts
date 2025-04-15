@@ -7,7 +7,7 @@ import { CliArguments } from '../../shared/types/app.type.js';
 import { getConsolidatedSources } from '../../shared/utils/filesystem.utils.js';
 import { writeOutputFile } from '../../shared/utils/file-io.utils.js';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service.js';
-import { EnhancementType } from '../../shared/enums/enhancement.type.js';
+import { EnhancementType } from '../types/enhancement.type.js';
 
 const logPrefix = "[AnalyzeArchitecture]";
 const DEFAULT_OUTPUT_FILENAME = 'AI_Architecture_Analyzed.md'; // <<< Changed Default Name

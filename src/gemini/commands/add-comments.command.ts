@@ -7,7 +7,7 @@ import { CliArguments, FileProcessingResult } from '../../shared/types/app.type.
 import { getTargetFiles } from '../../shared/utils/filesystem.utils.js';
 import { readSingleFile, updateFileContent } from '../../shared/utils/file-io.utils.js';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '../gemini.service.js'; // Updated path
-import { EnhancementType } from '../../shared/enums/enhancement.type.js';
+import { EnhancementType } from '../types/enhancement.type.js';
 
 const logPrefix = "[AddComments]";
 

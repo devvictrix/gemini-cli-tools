@@ -1,7 +1,7 @@
 // File: src/gemini/cli/gemini.handler.ts
 
 import { CliArguments } from '../../shared/types/app.type.js';
-import { EnhancementType } from '../../shared/enums/enhancement.type.js';
+import { EnhancementType } from '../types/enhancement.type.js';
 
 // --- Import Command Handlers ---
 import * as addCommentsCmd from '../commands/add-comments.command.js';

@@ -5,7 +5,7 @@ import * as path from 'path';
 import { CliArguments } from '../../shared/types/app.type.js';
 import { EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from '../../shared/constants/filesystem.constants.js';
 import { writeOutputFile } from '../../shared/utils/file-io.utils.js';
-import { EnhancementType } from '../../shared/enums/enhancement.type.js';
+import { EnhancementType } from '../types/enhancement.type.js';
 
 const logPrefix = "[GenerateStructureDoc]"; // Prefix for all log messages from this module
 
