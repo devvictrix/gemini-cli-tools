@@ -185,34 +185,28 @@ export async function runCli(processArgs: string[]): Promise<void> {
         // --- Test Generation Command (New) ---
         .command( // GenerateTests
             `${EnhancementType.GenerateTests} <targetPath>`,
-            'Generate unit tests for a specific file or module using AI.',
+            'Generate/update unit test file(s) for source file(s) using AI (output to tests/...).', // Updated description
             (yargsInstance) => {
                 return yargsInstance
                     .positional('targetPath', {
-                        describe: 'Path to the source file or module directory to test.',
+                        describe: 'Path to the source file or directory to generate tests for.', // Supports file or dir
                         type: 'string',
                         demandOption: true,
                     })
-                    .option('output', {
-                        alias: 'o',
-                        type: 'string',
-                        description: 'Optional: Path to save the generated test file (e.g., src/module/module.test.ts). If omitted, output to console.',
-                        demandOption: false, // Output is optional
-                    })
+                    // Output is implicit now
                     .option('framework', {
                         alias: 'f',
                         type: 'string',
                         description: 'Testing framework hint for generation (e.g., jest, vitest, mocha).',
-                        default: 'jest', // Default to Jest
+                        default: 'jest',
                     })
-                    .option('prefix', { // Keep prefix if targetPath is directory
+                    .option('prefix', { // Re-added prefix for directories
                         alias: 'p',
                         type: 'string',
                         description: 'Optional filename prefix filter (if targetPath is a directory).',
                         demandOption: false,
                     });
             },
-            // Pass the framework option along in argv
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateTests } as CliArguments)
         )
         // --- End Test Generation Command ---
