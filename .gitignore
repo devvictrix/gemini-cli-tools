@@ -1,12 +1,64 @@
 # .gitignore
+
+# Node modules and debug logs
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment variables
 .env*
 !.env.example
 !.env.template
 
-node_modules/
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Dependency directories
+jspm_packages/
+bower_components/
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Build directories
 dist/
 build/
-coverage/
-*.log
+out/
 
+# TypeScript v1 declaration files
+typings/
+
+# TypeScript
+*.tsbuildinfo
+
+# Coverage directory used by tools like Istanbul
+coverage/
+
+# nyc test coverage
+.nyc_output
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# Dependency lock files
+package-lock.json
+yarn.lock
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# additional
 consolidated_output.txt
