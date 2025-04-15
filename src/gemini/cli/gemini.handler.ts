@@ -15,8 +15,7 @@ import * as inferFromDataCmd from '../commands/infer-from-data.command.js';
 import * as suggestImprovementsCmd from '../commands/suggest-improvements.command.js';
 import * as analyzeArchitectureCmd from '../commands/analyze-architecture.command.js';
 import * as generateModuleReadmeCmd from '../commands/generate-module-readme.command.js';
-import * as generateTestsCmd from '../commands/generate-tests.command.js'; // <<< Added Import
-
+import * as generateTestsCmd from '../commands/generate-tests.command.js';
 const logPrefix = "[GeminiHandler]";
 
 // Map command enum/string (EnhancementType) to the corresponding handler function's execute method.
