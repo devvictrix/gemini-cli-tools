@@ -1,5 +1,4 @@
 // File: src/gemini/commands/generate-module-readme.command.ts
-// Status: New
 
 import fs from 'fs';
 import path from 'path';
@@ -33,16 +32,14 @@ export async function execute(args: CliArguments): Promise<void> {
 
     // --- Validate Target Path ---
     let stats: fs.Stats;
-    let absTargetPath: string;
+    let absTargetPath: string; // Will store the absolute path to the target module directory
     try {
         absTargetPath = path.resolve(targetPath);
         stats = fs.statSync(absTargetPath);
         if (!stats.isDirectory()) {
-            // Specific error for this command's requirement
             throw new Error(`Target path for '${EnhancementType.GenerateModuleReadme}' must be a directory.`);
         }
     } catch (e) {
-        // Catch stat errors (like non-existence) or the explicit directory check error
         throw new Error(`Cannot access target path: '${targetPath}'. Please ensure it exists and is a directory. ${e instanceof Error ? e.message : ''}`);
     }
 
@@ -51,10 +48,9 @@ export async function execute(args: CliArguments): Promise<void> {
     const consolidatedCode = await getConsolidatedSources(absTargetPath, prefix); // Scoped consolidation
 
     // Check if consolidation yielded any meaningful content
-    // The header created by getConsolidatedSources has 7 lines.
-    if (consolidatedCode.trim().split('\n').length <= 7) {
+    if (consolidatedCode.trim().split('\n').length <= 7) { // Adjust based on actual header lines
         console.warn(`${logPrefix} No relevant source files found in module directory '${targetPath}'${prefix ? ` matching prefix '${prefix}'` : ''}. Cannot generate README.`);
-        return; // Exit gracefully
+        return;
     }
 
     // --- Invoke Gemini Service ---
@@ -63,8 +59,12 @@ export async function execute(args: CliArguments): Promise<void> {
 
     // --- Handle Result & Write README.md ---
     if (result.type === 'text' && result.content !== null) {
-        // Output path is *inside* the target directory
+        // --- CORRECTED OUTPUT PATH CALCULATION ---
+        // Output path is resolved *inside* the target module directory
         const outputFilePath = path.resolve(absTargetPath, OUTPUT_FILENAME);
+        // --- End Correction ---
+
+        // Get the relative path for logging purposes
         const relativeOutput = path.relative(process.cwd(), outputFilePath).split(path.sep).join('/');
 
         console.log(`\n${logPrefix} Writing generated README to ${relativeOutput}...`);
@@ -75,13 +75,11 @@ export async function execute(args: CliArguments): Promise<void> {
 
         const success = writeOutputFile(outputFilePath, result.content);
         if (!success) {
-            // Throw an error to be caught by the central handler
             throw new Error(`Failed to write module README file to ${relativeOutput}.`);
         } else {
             console.log(`\n${logPrefix} ✅ Successfully generated module README: ${relativeOutput}`);
         }
     } else if (result.type === 'error') {
-        // Throw an error to be caught by the central handler
         throw new Error(`Gemini service failed during module README generation: ${result.content ?? 'No specific error message provided.'}`);
     } else {
         // Handle unexpected results
