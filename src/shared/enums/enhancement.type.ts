@@ -1,4 +1,5 @@
 // File: src/shared/enums/enhancement.type.ts
+// Status: Updated (Adding AnalyzeArchitecture)
 
 /**
  * Enum representing the different types of code enhancement or utility actions
@@ -14,8 +15,12 @@ export enum EnhancementType {
 	Explain = 'Explain',
 	/** Suggest specific, actionable improvements for the code. */
 	SuggestImprovements = 'SuggestImprovements',
-	/** Generate Markdown documentation (e.g., for README). */
+	/** Generate Markdown documentation (e.g., for project root README). */
 	GenerateDocs = 'GenerateDocs',
+	/** Provide an AI-driven analysis of the project's architecture. */
+	AnalyzeArchitecture = 'AnalyzeArchitecture', // <<< Added Here
+	// DescribeComponent = 'DescribeComponent', // Deferred
+	// GenerateModuleReadme = 'GenerateModuleReadme', // Deferred
 
 	// --- Local Code/File Manipulations ---
 	/** Add a '// File: <relativePath>' comment header to files (Local Action). */
@@ -25,7 +30,7 @@ export enum EnhancementType {
 	/** Infer TypeScript interface from a JSON data file (Local Action). */
 	InferFromData = 'InferFromData',
 	/** Generate a Markdown file representing the project directory structure (Local Action). */
-	GenerateStructureDoc = 'GenerateStructureDoc', // <<< Added Here
+	GenerateStructureDoc = 'GenerateStructureDoc',
 
 	// Add more types here in the future (e.g., GenerateTests, Refactor)
 }
