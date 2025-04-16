@@ -25,6 +25,7 @@ export const EXCLUDE_PATTERNS: Set<string> = new Set([
     "build", // Exclude build directories containing compiled/transpiled code.
     ".git", // Exclude the Git repository directory, as it contains version control metadata.
     "coverage", // Exclude code coverage directories, as they are not part of the source code.
+    ".nuxt",
 ]);
 
 /**
