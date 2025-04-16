@@ -10,6 +10,7 @@ export const INCLUDE_EXTENSIONS: Set<string> = new Set([
     ".js",
     ".json",
     ".env",
+    ".yml",
 ]);
 
 /**
