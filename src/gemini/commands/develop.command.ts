@@ -1,29 +1,68 @@
-// File: src/gemini/commands/develop.command.ts
+// src/gemini/commands/develop.command.ts
 
 import fs from 'fs';
 import path from 'path';
-import { CliArguments } from '@shared/types/app.type';
+import { CliArguments } from '@shared/types/app.type'; // Assuming this type includes command, targetPath etc.
 import { readSingleFile, writeOutputFile } from '@shared/utils/file-io.utils';
-import { parseChecklistTable, extractCurrentPhase, ChecklistItem } from '@shared/utils/markdown.utils'; // Use the new util
+import { parseChecklistTable, extractCurrentPhase, ChecklistItem } from '@shared/utils/markdown.utils'; // Use the markdown util
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '@/gemini/gemini.service';
 import { EnhancementType } from '@/gemini/types/enhancement.type';
-import { extractCodeBlock } from '@/gemini/utils/code.extractor';
 
 const logPrefix = "[Develop]";
 const REQUIREMENT_FILENAME = 'REQUIREMENT.md';
 const CHECKLIST_FILENAME = 'REQUIREMENTS_CHECKLIST.md';
 
 /**
+ * Generates a detailed prompt for the Gemini API to implement a development task,
+ * instructing it to return the full modified file content.
+ *
+ * @param task - The checklist item representing the task to implement.
+ * @param codeContext - A string containing the code from relevant files, with file path headers.
+ * @returns The generated prompt string.
+ */
+function generateDevelopmentPrompt(task: ChecklistItem, codeContext: string): string {
+    let fileContextSection = "No specific code context provided. Implement based on the task description.";
+    if (codeContext.trim()) {
+        // Ensure context is wrapped correctly, even if it's multi-file
+        fileContextSection = `Here is the current content of the relevant file(s):\n\n${codeContext}\n`;
+    }
+
+    return `
+You are an AI programming assistant. Your task is to implement the following requirement based on the provided code context.
+
+**Requirement Details:**
+- **Task ID:** ${task.id}
+- **Description:** ${task.description}
+- **Responsible File(s):** ${task.responsibleFiles.join(', ') || 'N/A'}
+
+**Current Code Context:**
+${fileContextSection}
+
+**Instructions:**
+1.  Carefully read the requirement description.
+2.  Analyze the provided code context from the responsible file(s).
+3.  Implement the required changes directly into the code.
+4.  **CRITICAL:** Respond with the **ENTIRE modified content** for each file that was changed. If a file listed as responsible was NOT changed, do NOT include it in the response.
+5.  **CRITICAL:** If you modify one or more files, you MUST precede the complete content of each modified file with a header comment line exactly like this: \`// File: path/to/the/file.ext\` (using the correct relative path).
+6.  Ensure the returned code is complete and syntactically correct for the entire file.
+7.  Do NOT include any explanations, introductions, summaries, or markdown formatting (like \`\`\`) outside the code content itself. Respond ONLY with the file header comments and the complete code for each modified file.
+
+Implement the requirement and provide the full modified file content(s) now.
+`;
+}
+
+/**
  * Executes the Develop command.
  * 1. Reads REQUIREMENT.md to find the current phase.
  * 2. Reads REQUIREMENTS_CHECKLIST.md to find the next task (In Progress or Not Started).
  * 3. Reads the content of files relevant to the task.
- * 4. Prompts Gemini to implement the task based on the code context.
- * 5. Displays the suggested code changes from Gemini.
+ * 4. Prompts Gemini to implement the task and return the full modified file content(s).
+ * 5. Parses Gemini's response based on '// File: ...' headers.
+ * 6. Writes the modified content back to the respective files, overwriting them.
  *
  * @param args - The command line arguments, expecting targetPath to be the project root.
  * @returns A promise that resolves when the process is complete.
- * @throws Error if files are missing, parsing fails, no task is found, or Gemini fails.
+ * @throws Error if files are missing, parsing fails, no task is found, Gemini fails, or file writing fails.
  */
 export async function execute(args: CliArguments): Promise<void> {
     if (args.command !== EnhancementType.Develop) {
@@ -38,13 +77,13 @@ export async function execute(args: CliArguments): Promise<void> {
     // --- Validate Project Root and Files ---
     let requirementContent: string;
     let checklistContent: string;
+    const requirementPath = path.join(projectRoot, REQUIREMENT_FILENAME);
+    const checklistPath = path.join(projectRoot, CHECKLIST_FILENAME);
+
     try {
         if (!fs.statSync(projectRoot).isDirectory()) {
             throw new Error("Target path must be a directory.");
         }
-        const requirementPath = path.join(projectRoot, REQUIREMENT_FILENAME);
-        const checklistPath = path.join(projectRoot, CHECKLIST_FILENAME);
-
         console.log(`${logPrefix} Reading requirement files...`);
         requirementContent = readSingleFile(requirementPath); // Use shared util
         checklistContent = readSingleFile(checklistPath);   // Use shared util
@@ -85,29 +124,43 @@ export async function execute(args: CliArguments): Promise<void> {
 
     // --- Gather Context (Read Relevant Files) ---
     let codeContext = '';
-    if (nextTask.responsibleFiles.length === 0) {
-        console.warn(`${logPrefix} ⚠️ No responsible files listed for task #${nextTask.id}. Proceeding without file context.`);
-    } else {
+    let filesToRead = nextTask.responsibleFiles.filter(f => f && f.toLowerCase() !== 'all files'); // Filter out empty strings and "All files"
+
+    if (nextTask.responsibleFiles.some(f => f && f.toLowerCase() === 'all files')) {
+        console.warn(`${logPrefix} ⚠️ Task lists 'All files'. This is ambiguous. Proceeding based on task description only. Consider specifying files in the checklist.`);
+        // Optionally: Add consolidation logic here if 'All files' should mean full project context
+        // try {
+        //    codeContext = await getConsolidatedSources(projectRoot); // Be careful with large projects
+        // } catch (consolidationError) {
+        //    console.error(`${logPrefix} Error consolidating project for 'All files' context:`, consolidationError);
+        //    // Decide whether to proceed without context or throw error
+        // }
+        filesToRead = []; // Don't try to read specific files if 'All files' is present
+    }
+
+    if (filesToRead.length === 0 && !nextTask.responsibleFiles.some(f => f && f.toLowerCase() === 'all files')) {
+        console.warn(`${logPrefix} ⚠️ No specific, valid responsible files listed for task #${nextTask.id}. Proceeding without specific file context.`);
+    } else if (filesToRead.length > 0) {
         console.log(`${logPrefix} Reading content of relevant files...`);
-        for (const relativeFilePath of nextTask.responsibleFiles) {
-            if (!relativeFilePath) continue; // Skip empty entries
+        let readableFilesFound = false;
+        for (const relativeFilePath of filesToRead) {
             const absoluteFilePath = path.resolve(projectRoot, relativeFilePath); // Resolve relative to project root
-            const friendlyPath = relativeFilePath.split(path.sep).join('/'); // For comments
+            const friendlyPath = relativeFilePath.split(path.sep).join('/'); // For comments/logging
             try {
                 const fileContent = readSingleFile(absoluteFilePath);
                 // Add file path comments for Gemini context
-                codeContext += `// File: ${friendlyPath}\n\n${fileContent}\n\n`;
+                codeContext += `// File: ${friendlyPath}\n\n${fileContent}\n\n---\n\n`; // Separator helps AI
+                readableFilesFound = true;
             } catch (e) {
+                // Log specific error from readSingleFile (which includes path)
                 console.warn(`${logPrefix} ⚠️ Could not read file: ${friendlyPath}. Skipping. Error: ${e instanceof Error ? e.message : e}`);
-                // Decide if this should be a fatal error or just a warning
-                // For now, warn and continue, Gemini might still work with partial context.
+                // Continue, Gemini might still work with partial context.
             }
         }
-        if (!codeContext.trim()) {
-            console.warn(`${logPrefix} ⚠️ All responsible files were unreadable or empty for task #${nextTask.id}. Proceeding without file context.`);
+        if (!readableFilesFound) {
+            console.warn(`${logPrefix} ⚠️ All specified responsible files were unreadable for task #${nextTask.id}. Proceeding without file context.`);
         }
     }
-
 
     // --- Generate Prompt for Gemini ---
     console.log(`${logPrefix} Generating prompt for Gemini...`);
@@ -115,76 +168,89 @@ export async function execute(args: CliArguments): Promise<void> {
 
     // --- Invoke Gemini Service ---
     console.log(`${logPrefix} Invoking Gemini service to implement task...`);
-    const result: GeminiEnhancementResult = await enhanceCodeWithGemini(EnhancementType.Develop, prompt); // Using Develop type, but service needs prompt
+    // Use 'Develop' type conceptually, but pass the fully generated prompt
+    const result: GeminiEnhancementResult = await enhanceCodeWithGemini(EnhancementType.Develop, prompt);
 
-    // --- Handle Result ---
+    // --- Handle Result & Apply Changes ---
     if (result.type === 'error' || result.content === null) {
         throw new Error(`Gemini service failed for task #${nextTask.id}: ${result.content ?? 'No content returned'}`);
     }
 
-    // --- Display Suggested Changes ---
-    // We will NOT automatically apply changes. Display them for review.
-    console.log(`\n${logPrefix} --- 💡 Gemini Suggestions for Task #${nextTask.id} ---`);
-    console.log(`--- Task Description: ${nextTask.description}`);
-    console.log(`--- NOTE: Review these changes carefully and apply them manually to the relevant files. ---`);
+    const geminiResponseContent = result.content;
 
-    // Attempt to extract code blocks - this might need refinement if Gemini returns
-    // explanations mixed with multiple code blocks.
-    // For now, try extracting the first block, or just show the whole response.
-    const extractedCode = extractCodeBlock(result.content);
+    // Regex to find file headers. Use 'm' flag for multiline.
+    // Matches "// File:", optional whitespace, the path, optional whitespace, newline.
+    // Captures the path in group 1.
+    const fileHeaderRegex = /^\s*\/\/\s*File:\s*([^\s\n\r]+)\s*$/m;
 
-    if (extractedCode) {
-        console.log("\n```typescript\n" + extractedCode + "\n```\n");
-        console.log(`--- Gemini suggested the code block above. You may need to integrate parts of it into the correct file(s): ${nextTask.responsibleFiles.join(', ')} ---`);
-        // Advanced: Try to parse "// File: ..." comments within the response to show file-specific changes.
-    } else {
-        console.log("\n--- Raw Gemini Response ---");
-        console.log(result.content);
-        console.log("\n--- End Raw Gemini Response ---");
-        console.log(`--- Could not automatically extract a code block. Please review the raw response above and apply necessary changes to: ${nextTask.responsibleFiles.join(', ')} ---`);
+    // Split the response by the file header. `split` with a capturing group includes the delimiter
+    // in the results, but it's complex. A simpler approach is to find all headers,
+    // then extract content between them.
+    const fileMatches = Array.from(geminiResponseContent.matchAll(fileHeaderRegex));
+
+    if (fileMatches.length === 0) {
+        console.warn(`${logPrefix} ⚠️ Gemini response did not contain any recognizable '// File: ...' headers. Cannot apply changes automatically.`);
+        console.log("\n--- Raw Gemini Response (Review Manually) ---");
+        console.log(geminiResponseContent);
+        console.log("--- End Raw Gemini Response ---");
+        // Reminder for manual update
+        console.log(`\n${logPrefix} IMPORTANT: Apply changes manually and update the status of Task #${nextTask.id} in ${CHECKLIST_FILENAME}.`);
+        return; // Exit without throwing error, but indicate manual action needed
     }
-    console.log(`${logPrefix} --- End Suggestions ---`);
+
+    console.log(`\n${logPrefix} Attempting to apply changes to ${fileMatches.length} file(s)...`);
+    let filesWritten = 0;
+    let writeErrors = 0;
+
+    for (let i = 0; i < fileMatches.length; i++) {
+        const match = fileMatches[i];
+        const relativeFilePath = match[1]; // Captured path
+        const startIndex = match.index! + match[0].length; // Start content after the header line
+        const endIndex = (i + 1 < fileMatches.length) ? fileMatches[i + 1].index! : geminiResponseContent.length; // End before next header or at end of string
+
+        const codeContent = geminiResponseContent.substring(startIndex, endIndex).trim(); // Extract and trim whitespace
+
+        // Basic validation of the path extracted
+        if (!relativeFilePath || relativeFilePath.includes(' ') || !relativeFilePath.includes('/')) {
+            console.warn(`${logPrefix} ⚠️ Skipping block due to potentially invalid file path extracted: ${relativeFilePath}`);
+            continue;
+        }
+
+        const absoluteFilePath = path.resolve(projectRoot, relativeFilePath); // Resolve against project root
+
+        if (!codeContent) {
+            console.warn(`  ${logPrefix} ⚠️ Skipping empty content block for file: ${relativeFilePath}`);
+            continue;
+        }
+
+        console.log(`  ${logPrefix} Writing changes to: ${relativeFilePath}`);
+        try {
+            // Use writeOutputFile which handles dir creation and replaces the file content
+            const success = writeOutputFile(absoluteFilePath, codeContent);
+            if (success) {
+                filesWritten++;
+            } else {
+                // writeOutputFile should log the specific error internally
+                console.error(`  ${logPrefix} ❌ Failed to write changes to ${relativeFilePath} (writeOutputFile returned false).`);
+                writeErrors++;
+            }
+        } catch (e) {
+            console.error(`  ${logPrefix} ❌ Error during file write operation for ${relativeFilePath}: ${e instanceof Error ? e.message : e}`);
+            writeErrors++;
+        }
+    }
+
+    console.log(`\n${logPrefix} --- Change Application Summary ---`);
+    console.log(`  Files Identified in Response: ${fileMatches.length}`);
+    console.log(`  Files Written Successfully:   ${filesWritten}`);
+    console.log(`  Write Errors Encountered:     ${writeErrors}`);
+    console.log(`----------------------------------`);
 
     // Reminder for manual update
-    console.log(`\n${logPrefix} IMPORTANT: After applying changes, manually update the status of Task #${nextTask.id} in ${CHECKLIST_FILENAME}.`);
+    console.log(`\n${logPrefix} IMPORTANT: Review the applied changes using 'git diff'. Manually update the status of Task #${nextTask.id} in ${CHECKLIST_FILENAME}.`);
 
-}
-
-
-/**
- * Generates a detailed prompt for the Gemini API to implement a development task.
- *
- * @param task - The checklist item representing the task to implement.
- * @param codeContext - A string containing the code from relevant files, with file path headers.
- * @returns The generated prompt string.
- */
-function generateDevelopmentPrompt(task: ChecklistItem, codeContext: string): string {
-    let fileContextSection = "No code context provided.";
-    if (codeContext.trim()) {
-        fileContextSection = `Here is the current content of the relevant file(s):\n\`\`\`typescript\n${codeContext}\n\`\`\``;
+    if (writeErrors > 0) {
+        // Throw error if any file writing failed, indicating overall failure
+        throw new Error(`${writeErrors} error(s) occurred while writing files during the Develop command.`);
     }
-
-    return `
-You are an AI programming assistant. Your task is to implement the following requirement based on the provided code context.
-
-**Requirement Details:**
-- **Task ID:** ${task.id}
-- **Description:** ${task.description}
-- **Responsible File(s):** ${task.responsibleFiles.join(', ') || 'N/A'}
-
-**Current Code Context:**
-${fileContextSection}
-
-**Instructions:**
-1.  Carefully read the requirement description.
-2.  Analyze the provided code context from the responsible file(s).
-3.  Implement the required changes or additions directly into the code.
-4.  If modifying existing code, clearly show the changes. If adding new code (e.g., a new function or file content), provide the complete new code block.
-5.  Ensure the generated code adheres to standard TypeScript/JavaScript best practices and maintains consistency with the existing code style (if discernible).
-6.  **Respond ONLY with the modified or new code block(s).**
-7.  If you modify multiple files, include the \`// File: path/to/your/file.ts\` header before each respective code block in your response.
-8.  Do not include any explanations, introductions, or summaries outside the code blocks themselves (use comments within the code if explanation is needed).
-
-Implement the requirement now.
-`;
 }
