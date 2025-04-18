@@ -16,6 +16,8 @@ import * as suggestImprovementsCmd from '@/gemini/commands/suggest-improvements.
 import * as analyzeArchitectureCmd from '@/gemini/commands/analyze-architecture.command';
 import * as generateModuleReadmeCmd from '@/gemini/commands/generate-module-readme.command';
 import * as generateTestsCmd from '@/gemini/commands/generate-tests.command';
+import * as developCmd from '@/gemini/commands/develop.command';
+import * as generateProgressReportCmd from '@/gemini/commands/generate-progress-report.command';
 
 /**
  * @constant {string} logPrefix - A constant string used as a prefix for all log messages originating from this file.
@@ -42,6 +44,8 @@ const commandHandlerMap: { [key in EnhancementType]: (args: CliArguments) => Pro
     [EnhancementType.AnalyzeArchitecture]: analyzeArchitectureCmd.execute,
     [EnhancementType.GenerateModuleReadme]: generateModuleReadmeCmd.execute,
     [EnhancementType.GenerateTests]: generateTestsCmd.execute,
+    [EnhancementType.Develop]: developCmd.execute,
+    [EnhancementType.GenerateProgressReport]: generateProgressReportCmd.execute
 };
 
 /**

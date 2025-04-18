@@ -86,6 +86,9 @@ export enum EnhancementType {
 	 */
 	GenerateStructureDoc = 'GenerateStructureDoc',
 
+	Develop = 'Develop',
+	GenerateProgressReport = 'GenerateProgressReport',
+
 	// Add more types here in the future
 }
 

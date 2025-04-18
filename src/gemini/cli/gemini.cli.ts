@@ -222,6 +222,39 @@ export async function runCli(processArgs: string[]): Promise<void> {
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateTests } as CliArguments) // Executes the command logic
         )
         // --- End Test Generation Command ---
+        .command( // Develop (New)
+            `${EnhancementType.Develop} <targetPath>`,
+            'Develop the next feature based on REQUIREMENT.md and REQUIREMENTS_CHECKLIST.md.',
+            (yargsInstance) => {
+                return yargsInstance
+                    .positional('targetPath', {
+                        describe: 'Root project directory containing requirement files.',
+                        type: 'string',
+                        demandOption: true,
+                    });
+                // Add other options if needed in the future (e.g., --force-task=<id>)
+            },
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.Develop } as CliArguments) // Executes the command logic
+        )
+        .command(
+            `${EnhancementType.GenerateProgressReport} <targetPath>`,
+            'Generate PROGRESS-{date}.md based on current requirements/checklist.',
+            (yargsInstance) => {
+                return yargsInstance
+                    .positional('targetPath', {
+                        describe: 'Root project directory containing requirement/checklist files.',
+                        type: 'string',
+                        demandOption: true,
+                    })
+                    .option('output', { // Optional: Allow overriding output dir/name
+                        alias: 'o',
+                        type: 'string',
+                        description: 'Optional path/filename for the output progress report.',
+                        demandOption: false,
+                    });
+            },
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateProgressReport } as CliArguments)
+        )
         .demandCommand(1, 'Please specify a valid command (action).') // Ensures that at least one command is specified.
         .strict() // Enable strict mode to prevent unknown options.
         .help() // Enable the help command.
