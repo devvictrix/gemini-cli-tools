@@ -181,7 +181,7 @@ export async function execute(args: CliArguments): Promise<void> {
     // Regex to find file headers. Use 'm' flag for multiline.
     // Matches "// File:", optional whitespace, the path, optional whitespace, newline.
     // Captures the path in group 1.
-    const fileHeaderRegex = /^\s*\/\/\s*File:\s*([^\s\n\r]+)\s*$/m;
+    const fileHeaderRegex = /^\s*\/\/\s*File:\s*([^\s\n\r]+)\s*$/gm;
 
     // Split the response by the file header. `split` with a capturing group includes the delimiter
     // in the results, but it's complex. A simpler approach is to find all headers,
