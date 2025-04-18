@@ -2,9 +2,10 @@
 
 import fs from 'fs';
 import path from 'path';
-import { CliArguments } from '@shared/types/app.type'; // Assuming this type includes command, targetPath etc.
+import { glob } from 'glob'; // <<< Import glob
+import { CliArguments } from '@shared/types/app.type';
 import { readSingleFile, writeOutputFile } from '@shared/utils/file-io.utils';
-import { parseChecklistTable, extractCurrentPhase, ChecklistItem } from '@shared/utils/markdown.utils'; // Use the markdown util
+import { parseChecklistTable, extractCurrentPhase, ChecklistItem } from '@shared/utils/markdown.utils';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '@/gemini/gemini.service';
 import { EnhancementType } from '@/gemini/types/enhancement.type';
 
@@ -12,18 +13,10 @@ const logPrefix = "[Develop]";
 const REQUIREMENT_FILENAME = 'REQUIREMENT.md';
 const CHECKLIST_FILENAME = 'REQUIREMENTS_CHECKLIST.md';
 
-/**
- * Generates a detailed prompt for the Gemini API to implement a development task,
- * instructing it to return the full modified file content.
- *
- * @param task - The checklist item representing the task to implement.
- * @param codeContext - A string containing the code from relevant files, with file path headers.
- * @returns The generated prompt string.
- */
+// (generateDevelopmentPrompt function remains the same as before)
 function generateDevelopmentPrompt(task: ChecklistItem, codeContext: string): string {
     let fileContextSection = "No specific code context provided. Implement based on the task description.";
     if (codeContext.trim()) {
-        // Ensure context is wrapped correctly, even if it's multi-file
         fileContextSection = `Here is the current content of the relevant file(s):\n\n${codeContext}\n`;
     }
 
@@ -51,19 +44,7 @@ Implement the requirement and provide the full modified file content(s) now.
 `;
 }
 
-/**
- * Executes the Develop command.
- * 1. Reads REQUIREMENT.md to find the current phase.
- * 2. Reads REQUIREMENTS_CHECKLIST.md to find the next task (In Progress or Not Started).
- * 3. Reads the content of files relevant to the task.
- * 4. Prompts Gemini to implement the task and return the full modified file content(s).
- * 5. Parses Gemini's response based on '// File: ...' headers.
- * 6. Writes the modified content back to the respective files, overwriting them.
- *
- * @param args - The command line arguments, expecting targetPath to be the project root.
- * @returns A promise that resolves when the process is complete.
- * @throws Error if files are missing, parsing fails, no task is found, Gemini fails, or file writing fails.
- */
+
 export async function execute(args: CliArguments): Promise<void> {
     if (args.command !== EnhancementType.Develop) {
         throw new Error("Handler mismatch: Expected Develop command.");
@@ -85,8 +66,8 @@ export async function execute(args: CliArguments): Promise<void> {
             throw new Error("Target path must be a directory.");
         }
         console.log(`${logPrefix} Reading requirement files...`);
-        requirementContent = readSingleFile(requirementPath); // Use shared util
-        checklistContent = readSingleFile(checklistPath);   // Use shared util
+        requirementContent = readSingleFile(requirementPath);
+        checklistContent = readSingleFile(checklistPath);
     } catch (e) {
         throw new Error(`Failed to access project root or required files (${REQUIREMENT_FILENAME}, ${CHECKLIST_FILENAME}): ${e instanceof Error ? e.message : e}`);
     }
@@ -108,8 +89,6 @@ export async function execute(args: CliArguments): Promise<void> {
     }
 
     const phaseTasks = checklistItems.filter(item => item.targetPhase === currentPhaseIdentifier);
-
-    // Prioritize 'In Progress', then 'Not Started' within the current phase
     let nextTask = phaseTasks.find(item => item.status.toLowerCase() === 'in progress');
     if (!nextTask) {
         nextTask = phaseTasks.find(item => item.status.toLowerCase() === 'not started');
@@ -117,50 +96,70 @@ export async function execute(args: CliArguments): Promise<void> {
 
     if (!nextTask) {
         console.log(`\n${logPrefix} ✅ No pending tasks found for the current phase (${currentPhaseIdentifier}). Check checklist or advance phase in ${REQUIREMENT_FILENAME}.`);
-        return; // Nothing to do for this phase
+        return;
     }
     console.log(`${logPrefix} Selected Task #${nextTask.id}: ${nextTask.description}`);
     console.log(`${logPrefix}   Status: ${nextTask.status}, Files: ${nextTask.responsibleFiles.join(', ')}`);
 
     // --- Gather Context (Read Relevant Files) ---
     let codeContext = '';
-    let filesToRead = nextTask.responsibleFiles.filter(f => f && f.toLowerCase() !== 'all files'); // Filter out empty strings and "All files"
+    let readableFilesFound = false;
+    const processedFilePaths = new Set<string>(); // To avoid reading the same file twice if listed explicitly and via glob
 
-    if (nextTask.responsibleFiles.some(f => f && f.toLowerCase() === 'all files')) {
-        console.warn(`${logPrefix} ⚠️ Task lists 'All files'. This is ambiguous. Proceeding based on task description only. Consider specifying files in the checklist.`);
-        // Optionally: Add consolidation logic here if 'All files' should mean full project context
-        // try {
-        //    codeContext = await getConsolidatedSources(projectRoot); // Be careful with large projects
-        // } catch (consolidationError) {
-        //    console.error(`${logPrefix} Error consolidating project for 'All files' context:`, consolidationError);
-        //    // Decide whether to proceed without context or throw error
-        // }
-        filesToRead = []; // Don't try to read specific files if 'All files' is present
-    }
+    // **MODIFIED FILE READING LOGIC**
+    console.log(`${logPrefix} Reading content of relevant files...`);
+    const rawFilesList = nextTask.responsibleFiles
+        .map(f => f.trim().replace(/^`|`$/g, '')) // Clean backticks just in case
+        .filter(f => f && f.toLowerCase() !== 'all files'); // Filter out empty strings and "All files"
 
-    if (filesToRead.length === 0 && !nextTask.responsibleFiles.some(f => f && f.toLowerCase() === 'all files')) {
-        console.warn(`${logPrefix} ⚠️ No specific, valid responsible files listed for task #${nextTask.id}. Proceeding without specific file context.`);
-    } else if (filesToRead.length > 0) {
-        console.log(`${logPrefix} Reading content of relevant files...`);
-        let readableFilesFound = false;
-        for (const relativeFilePath of filesToRead) {
-            const absoluteFilePath = path.resolve(projectRoot, relativeFilePath); // Resolve relative to project root
-            const friendlyPath = relativeFilePath.split(path.sep).join('/'); // For comments/logging
+    for (const fileOrPattern of rawFilesList) {
+        let filesToProcess: string[] = [];
+
+        // Check if it's a glob pattern
+        if (fileOrPattern.includes('*')) {
+            console.log(`  ${logPrefix} Expanding glob pattern: ${fileOrPattern}`);
+            try {
+                // Use glob.sync for simplicity here, async is also possible
+                const matchedFiles = await glob(fileOrPattern, { cwd: projectRoot, nodir: true, absolute: true });
+                filesToProcess = matchedFiles;
+                console.log(`    ${logPrefix} Found ${matchedFiles.length} file(s) matching glob.`);
+            } catch (globError) {
+                console.warn(`${logPrefix} ⚠️ Error expanding glob pattern ${fileOrPattern}. Skipping. Error: ${globError instanceof Error ? globError.message : globError}`);
+                continue; // Skip to the next pattern/file
+            }
+        } else {
+            // Treat as a single file path
+            filesToProcess.push(path.resolve(projectRoot, fileOrPattern)); // Resolve relative to project root
+        }
+
+        // Process the resolved file paths (either single or from glob)
+        for (const absoluteFilePath of filesToProcess) {
+            if (processedFilePaths.has(absoluteFilePath)) {
+                continue; // Skip if already processed
+            }
+            processedFilePaths.add(absoluteFilePath);
+
+            const friendlyPath = path.relative(projectRoot, absoluteFilePath).split(path.sep).join('/'); // For comments/logging
+
             try {
                 const fileContent = readSingleFile(absoluteFilePath);
-                // Add file path comments for Gemini context
                 codeContext += `// File: ${friendlyPath}\n\n${fileContent}\n\n---\n\n`; // Separator helps AI
                 readableFilesFound = true;
+                console.log(`    ${logPrefix} Read context from: ${friendlyPath}`);
             } catch (e) {
-                // Log specific error from readSingleFile (which includes path)
-                console.warn(`${logPrefix} ⚠️ Could not read file: ${friendlyPath}. Skipping. Error: ${e instanceof Error ? e.message : e}`);
-                // Continue, Gemini might still work with partial context.
+                // readSingleFile logs specific errors, just add a generic warning here
+                console.warn(`${logPrefix} ⚠️ Failed to read ${friendlyPath}. Skipping context for this file.`);
             }
         }
-        if (!readableFilesFound) {
-            console.warn(`${logPrefix} ⚠️ All specified responsible files were unreadable for task #${nextTask.id}. Proceeding without file context.`);
-        }
     }
+    // **END MODIFIED FILE READING LOGIC**
+
+    if (!readableFilesFound && rawFilesList.length > 0) {
+        console.warn(`${logPrefix} ⚠️ All specified responsible files/patterns were unreadable or yielded no files for task #${nextTask.id}. Proceeding without file context.`);
+    } else if (rawFilesList.length === 0) {
+        console.warn(`${logPrefix} ⚠️ No specific, valid responsible files listed for task #${nextTask.id}. Proceeding without specific file context.`);
+    }
+
 
     // --- Generate Prompt for Gemini ---
     console.log(`${logPrefix} Generating prompt for Gemini...`);
@@ -168,7 +167,6 @@ export async function execute(args: CliArguments): Promise<void> {
 
     // --- Invoke Gemini Service ---
     console.log(`${logPrefix} Invoking Gemini service to implement task...`);
-    // Use 'Develop' type conceptually, but pass the fully generated prompt
     const result: GeminiEnhancementResult = await enhanceCodeWithGemini(EnhancementType.Develop, prompt);
 
     // --- Handle Result & Apply Changes ---
@@ -177,15 +175,7 @@ export async function execute(args: CliArguments): Promise<void> {
     }
 
     const geminiResponseContent = result.content;
-
-    // Regex to find file headers. Use 'm' flag for multiline.
-    // Matches "// File:", optional whitespace, the path, optional whitespace, newline.
-    // Captures the path in group 1.
-    const fileHeaderRegex = /^\s*\/\/\s*File:\s*([^\s\n\r]+)\s*$/gm;
-
-    // Split the response by the file header. `split` with a capturing group includes the delimiter
-    // in the results, but it's complex. A simpler approach is to find all headers,
-    // then extract content between them.
+    const fileHeaderRegex = /^\s*\/\/\s*File:\s*([^\s\n\r]+)\s*$/gm; // Global flag is important
     const fileMatches = Array.from(geminiResponseContent.matchAll(fileHeaderRegex));
 
     if (fileMatches.length === 0) {
@@ -193,9 +183,8 @@ export async function execute(args: CliArguments): Promise<void> {
         console.log("\n--- Raw Gemini Response (Review Manually) ---");
         console.log(geminiResponseContent);
         console.log("--- End Raw Gemini Response ---");
-        // Reminder for manual update
         console.log(`\n${logPrefix} IMPORTANT: Apply changes manually and update the status of Task #${nextTask.id} in ${CHECKLIST_FILENAME}.`);
-        return; // Exit without throwing error, but indicate manual action needed
+        return;
     }
 
     console.log(`\n${logPrefix} Attempting to apply changes to ${fileMatches.length} file(s)...`);
@@ -204,19 +193,17 @@ export async function execute(args: CliArguments): Promise<void> {
 
     for (let i = 0; i < fileMatches.length; i++) {
         const match = fileMatches[i];
-        const relativeFilePath = match[1]; // Captured path
-        const startIndex = match.index! + match[0].length; // Start content after the header line
-        const endIndex = (i + 1 < fileMatches.length) ? fileMatches[i + 1].index! : geminiResponseContent.length; // End before next header or at end of string
+        const relativeFilePath = match[1];
+        const startIndex = match.index! + match[0].length;
+        const endIndex = (i + 1 < fileMatches.length) ? fileMatches[i + 1].index! : geminiResponseContent.length;
+        const codeContent = geminiResponseContent.substring(startIndex, endIndex).trim();
 
-        const codeContent = geminiResponseContent.substring(startIndex, endIndex).trim(); // Extract and trim whitespace
-
-        // Basic validation of the path extracted
         if (!relativeFilePath || relativeFilePath.includes(' ') || !relativeFilePath.includes('/')) {
             console.warn(`${logPrefix} ⚠️ Skipping block due to potentially invalid file path extracted: ${relativeFilePath}`);
             continue;
         }
 
-        const absoluteFilePath = path.resolve(projectRoot, relativeFilePath); // Resolve against project root
+        const absoluteFilePath = path.resolve(projectRoot, relativeFilePath);
 
         if (!codeContent) {
             console.warn(`  ${logPrefix} ⚠️ Skipping empty content block for file: ${relativeFilePath}`);
@@ -225,12 +212,10 @@ export async function execute(args: CliArguments): Promise<void> {
 
         console.log(`  ${logPrefix} Writing changes to: ${relativeFilePath}`);
         try {
-            // Use writeOutputFile which handles dir creation and replaces the file content
             const success = writeOutputFile(absoluteFilePath, codeContent);
             if (success) {
                 filesWritten++;
             } else {
-                // writeOutputFile should log the specific error internally
                 console.error(`  ${logPrefix} ❌ Failed to write changes to ${relativeFilePath} (writeOutputFile returned false).`);
                 writeErrors++;
             }
@@ -246,11 +231,9 @@ export async function execute(args: CliArguments): Promise<void> {
     console.log(`  Write Errors Encountered:     ${writeErrors}`);
     console.log(`----------------------------------`);
 
-    // Reminder for manual update
     console.log(`\n${logPrefix} IMPORTANT: Review the applied changes using 'git diff'. Manually update the status of Task #${nextTask.id} in ${CHECKLIST_FILENAME}.`);
 
     if (writeErrors > 0) {
-        // Throw error if any file writing failed, indicating overall failure
         throw new Error(`${writeErrors} error(s) occurred while writing files during the Develop command.`);
     }
 }
