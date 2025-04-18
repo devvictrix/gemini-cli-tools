@@ -99,19 +99,21 @@ export function parseChecklistTable(markdownContent: string): ChecklistItem[] {
 }
 
 export function extractCurrentPhase(markdownContent: string): { number: number, name: string } | null {
-    const phaseRegex = /Current Focus:\s*Phase\s+(\d+)\s*-\s*([^\(]+)/i;
-    const match = markdownContent.match(phaseRegex);
+    const phaseRegex = /^\s*(?:\*\s+)?(?:\*\*)?Current Focus:(?:\*\*)?\s*Phase\s+(\d+)\s*-\s*([^\(\n\r]+)/im;
 
-    if (match && match[1] && match[2]) {
-        try {
-            const number = parseInt(match[1], 10);
-            const name = match[2].trim();
-            return { number, name };
-        } catch (e) {
-            console.error(`${logPrefix} Failed to parse phase number from REQUIREMENT.md: ${match[1]}`);
-            return null;
-        }
-    }
-    console.warn(`${logPrefix} Could not find 'Current Focus: Phase X - Name' line in REQUIREMENT.md`);
-    return null;
+	const match = markdownContent.match(phaseRegex);
+
+	if (match && match[1] && match[2]) {
+		try {
+			const number = parseInt(match[1], 10);
+			// Trim any trailing whitespace from the captured name
+			const name = match[2].trim();
+			return { number, name };
+		} catch (e) {
+			console.error(`${logPrefix} Failed to parse phase number from REQUIREMENT.md: ${match[1]}`);
+			return null;
+		}
+	}
+	console.warn(`${logPrefix} Could not find line matching 'Current Focus: Phase X - Name' (allowing for markdown formatting) in REQUIREMENT.md`);
+	return null;
 }

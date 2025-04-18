@@ -1,4 +1,3 @@
-// File: REQUIREMENTS_CHECKLIST.md
 # REQUIREMENTS_CHECKLIST.md: Gemini Code Assistant CLI (gemini-poc) - v1.1
 
 **Purpose:** This document provides a detailed, traceable checklist of all functional requirements for the Gemini Code Assistant CLI (`gemini-poc`) v1.1. It tracks status, priority, responsible code areas, testing, etc. It is the single source of truth for feature completeness.
@@ -10,6 +9,7 @@
 *   `Blocked`: Waiting on another task, decision, or external factor.
 *   `Needs Review`: Code complete; awaiting review/merge.
 *   `Done`: Implemented, tested, and merged.
+*   `On Hold`: Intentionally deferred or paused.
 
 **Priority Legend:**
 *   `Critical`: Essential for core functionality or release.
@@ -17,7 +17,7 @@
 *   `Medium`: Useful feature or enhancement.
 *   `Low`: Minor improvement, nice-to-have.
 
-**Overall Project Completion:** 82% (Calculated based on 'Done' items: 14 / 17)
+**Overall Project Completion:** 82% (Calculated based on 'Done' items: 14 / 17 active - excluding 'On Hold')
 
 | #   | Requirement Description                  | Status        | Priority   | Target Phase | Completed In Ver. | Primary Responsible Files                                                                                                | Relevant Example(s) (CLI Usage)                         | Test File(s)                                        | Related Issue(s)/PR(s)   | Key Dependencies | Notes                                                                 |
 | --- | ---------------------------------------- | ------------- | ---------- | ------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- | --------------------------------------------------- | ------------------------ | ---------------- | --------------------------------------------------------------------- |
@@ -38,7 +38,7 @@
 | 15  | CLI Interface (`yargs`)                  | Done          | Critical   | P1           | v1.0.0            | `gemini/cli/gemini.cli.ts`, `gemini/cli/gemini.handler.ts`                                                       | *(Implied in all examples)*                             | `tests/gemini/cli/gemini.cli.test.ts`, `...handler.test.ts` | [Link_To_PR_#Core]   | `yargs`          | Core argument parsing and command dispatch.                         |
 | 16  | Configuration (`.env`)                   | Done          | Critical   | P1           | v1.0.0            | `config/app.config.ts`                                                                                           | *(Used internally)*                                     | `tests/config/app.config.test.ts`                 | [Link_To_PR_#Config] | `dotenv`         | API Key loading and validation.                                     |
 | 17  | Basic Error Handling                     | Done          | Critical   | P1           | v1.0.0            | `gemini/cli/gemini.handler.ts`, Individual command files                                                         | *(Observe on errors)*                                   | *(Part of command tests)*                           | [Link_To_PR_#Error]  | ---              | Basic `try...catch`, console logging. Needs Phase 5 refinement. |
-| 18  | Comprehensive Testing                    | Not Started   | High       | P5           | ---               | `tests/**/*`                                                                                                     | `npm test`                                              | `tests/**/*`                                      | [Link_To_Issue_#18]    | `jest`, `ts-jest`| Need tests for all commands and utils.                            |
+| 18  | Comprehensive Testing                    | On Hold       | High       | P5           | ---               | `tests/**/*`                                                                                                     | `npm test`                                              | `tests/**/*`                                      | [Link_To_Issue_#18]    | `jest`, `ts-jest`| **Deferring comprehensive test suite addition.**                  |
 | 19  | Robust Logging                           | Not Started   | Medium     | P5           | ---               | `shared/lib/logger.lib.ts` (Example), All files                                                                  | *(Observe enhanced logs)*                             | *(Needs Test)*                                      | [Link_To_Issue_#19]    | `pino`/`winston` | Replace `console.log` with structured logger.                     |
 | 20  | Refactor Prompts                         | Planning      | Medium     | P5           | ---               | `gemini/gemini.service.ts` (or dedicated prompt files)                                                           | *(Observe AI results)*                                | N/A                                                 | [Link_To_Issue_#20]    | ---              | Improve clarity, reliability, maybe externalize prompts.           |
 | 21  | Abstraction Layer (API/FS)               | Not Started   | Low        | P5           | ---               | `shared/interfaces/*`, `gemini/gemini.service.ts`, `shared/utils/*`                                             | *(Internal change)*                                     | *(Needs Test)*                                      | [Link_To_Issue_#21]    | ---              | Add interfaces to decouple from `axios`/`fs` for better testing.    |
