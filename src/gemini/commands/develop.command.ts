@@ -2,38 +2,51 @@
 
 import fs from 'fs';
 import path from 'path';
-import { glob } from 'glob'; // <<< Import glob
+import { glob } from 'glob';
 import { CliArguments } from '@shared/types/app.type';
 import { readSingleFile, writeOutputFile } from '@shared/utils/file-io.utils';
-import { parseChecklistTable, extractCurrentPhase, ChecklistItem } from '@shared/utils/markdown.utils';
+// Import the NEW roadmap parser (we'll define this next)
+import { parseRoadmapTable, RoadmapItem } from '@shared/utils/roadmap.utils';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '@/gemini/gemini.service';
 import { EnhancementType } from '@/gemini/types/enhancement.type';
 
 const logPrefix = "[Develop]";
-const REQUIREMENT_FILENAME = 'REQUIREMENT.md';
-const CHECKLIST_FILENAME = 'REQUIREMENTS_CHECKLIST.md';
+// Define the new roadmap filename constant
+const ROADMAP_FILENAME = 'FEATURE_ROADMAP.md';
 
-// (generateDevelopmentPrompt function remains the same as before)
-function generateDevelopmentPrompt(task: ChecklistItem, codeContext: string): string {
+/**
+ * Generates a detailed prompt for the Gemini API to implement a development task
+ * using information from the RoadmapItem.
+ *
+ * @param task - The RoadmapItem representing the task to implement.
+ * @param codeContext - A string containing the code from relevant files, with file path headers.
+ * @returns The generated prompt string.
+ */
+function generateDevelopmentPrompt(task: RoadmapItem, codeContext: string): string {
     let fileContextSection = "No specific code context provided. Implement based on the task description.";
     if (codeContext.trim()) {
         fileContextSection = `Here is the current content of the relevant file(s):\n\n${codeContext}\n`;
     }
 
+    // Using fields from RoadmapItem interface
     return `
-You are an AI programming assistant. Your task is to implement the following requirement based on the provided code context.
+You are an AI programming assistant. Your task is to implement the following feature/requirement based on the provided roadmap details and code context.
 
-**Requirement Details:**
-- **Task ID:** ${task.id}
+**Roadmap Item Details:**
+- **Version:** ${task.version || 'N/A'}
+- **Milestone:** ${task.milestone || 'N/A'}
+- **Feature:** ${task.feature || 'N/A'}
 - **Description:** ${task.description}
-- **Responsible File(s):** ${task.responsibleFiles.join(', ') || 'N/A'}
+- **Responsible File(s):** ${task.responsibleFiles?.join(', ') || 'N/A (Tool assumes this column exists)'}
+- **Priority:** ${task.priority || 'N/A'}
+- **Status:** ${task.status}
 
 **Current Code Context:**
 ${fileContextSection}
 
 **Instructions:**
-1.  Carefully read the requirement description.
-2.  Analyze the provided code context from the responsible file(s).
+1.  Carefully read the feature description and acceptance criteria (if available in description).
+2.  Analyze the provided code context from the responsible file(s) (if provided).
 3.  Implement the required changes directly into the code.
 4.  **CRITICAL:** Respond with the **ENTIRE modified content** for each file that was changed. If a file listed as responsible was NOT changed, do NOT include it in the response.
 5.  **CRITICAL:** If you modify one or more files, you MUST precede the complete content of each modified file with a header comment line exactly like this: \`// File: path/to/the/file.ext\` (using the correct relative path).
@@ -42,6 +55,42 @@ ${fileContextSection}
 
 Implement the requirement and provide the full modified file content(s) now.
 `;
+}
+
+/**
+ * Selects the next task from the roadmap based on status and priority.
+ * Priority Order: P0 > P1 > P2 ...
+ * Status Order: In Progress > Not Started
+ */
+function selectNextTask(items: RoadmapItem[]): RoadmapItem | null {
+    const pendingItems = items.filter(item =>
+        item.status && /^(Not Started|In Progress)/i.test(item.status)
+    );
+
+    if (pendingItems.length === 0) {
+        return null;
+    }
+
+    pendingItems.sort((a, b) => {
+        // 1. Prioritize "In Progress" over "Not Started"
+        const statusA = /In Progress/i.test(a.status) ? 0 : 1;
+        const statusB = /In Progress/i.test(b.status) ? 0 : 1;
+        if (statusA !== statusB) {
+            return statusA - statusB;
+        }
+
+        // 2. Prioritize by P-level (lower number is higher priority)
+        const priorityA = parseInt((a.priority || 'P99').replace('P', ''), 10);
+        const priorityB = parseInt((b.priority || 'P99').replace('P', ''), 10);
+        if (priorityA !== priorityB) {
+            return priorityA - priorityB;
+        }
+
+        // 3. Fallback to order in the file (approximated by index, though parse order isn't guaranteed)
+        return 0; // Keep original order if priority and status are the same
+    });
+
+    return pendingItems[0];
 }
 
 
@@ -55,111 +104,90 @@ export async function execute(args: CliArguments): Promise<void> {
 
     console.log(`\n${logPrefix} Starting development cycle for project at: ${projectRoot}`);
 
-    // --- Validate Project Root and Files ---
-    let requirementContent: string;
-    let checklistContent: string;
-    const requirementPath = path.join(projectRoot, REQUIREMENT_FILENAME);
-    const checklistPath = path.join(projectRoot, CHECKLIST_FILENAME);
+    // --- Read and Parse ROADMAP.md ---
+    let roadmapContent: string;
+    const roadmapPath = path.join(projectRoot, ROADMAP_FILENAME);
 
     try {
         if (!fs.statSync(projectRoot).isDirectory()) {
             throw new Error("Target path must be a directory.");
         }
-        console.log(`${logPrefix} Reading requirement files...`);
-        requirementContent = readSingleFile(requirementPath);
-        checklistContent = readSingleFile(checklistPath);
+        console.log(`${logPrefix} Reading roadmap file: ${ROADMAP_FILENAME}...`);
+        roadmapContent = readSingleFile(roadmapPath);
     } catch (e) {
-        throw new Error(`Failed to access project root or required files (${REQUIREMENT_FILENAME}, ${CHECKLIST_FILENAME}): ${e instanceof Error ? e.message : e}`);
+        throw new Error(`Failed to access project root or required file (${ROADMAP_FILENAME}): ${e instanceof Error ? e.message : e}`);
     }
 
-    // --- Determine Current Phase ---
-    console.log(`${logPrefix} Determining current phase...`);
-    const currentPhase = extractCurrentPhase(requirementContent);
-    if (!currentPhase) {
-        throw new Error(`Could not determine current phase from ${REQUIREMENT_FILENAME}. Ensure 'Current Focus: Phase X - Name' line exists.`);
-    }
-    const currentPhaseIdentifier = `P${currentPhase.number}`;
-    console.log(`${logPrefix} Identified Current Phase: ${currentPhaseIdentifier} - ${currentPhase.name}`);
-
-    // --- Parse Checklist and Find Next Task ---
-    console.log(`${logPrefix} Parsing checklist and selecting next task...`);
-    const checklistItems = parseChecklistTable(checklistContent);
-    if (checklistItems.length === 0) {
-        throw new Error(`Failed to parse any items from ${CHECKLIST_FILENAME}. Check table format.`);
+    console.log(`${logPrefix} Parsing roadmap table...`);
+    // Use the NEW roadmap parser function
+    const roadmapItems = parseRoadmapTable(roadmapContent);
+    if (roadmapItems.length === 0) {
+        // The parser should log specific errors
+        throw new Error(`Failed to parse any valid items from ${ROADMAP_FILENAME}. Check table format and column headers.`);
     }
 
-    const phaseTasks = checklistItems.filter(item => item.targetPhase === currentPhaseIdentifier);
-    let nextTask = phaseTasks.find(item => item.status.toLowerCase() === 'in progress');
-    if (!nextTask) {
-        nextTask = phaseTasks.find(item => item.status.toLowerCase() === 'not started');
-    }
+    // --- Find Next Task ---
+    console.log(`${logPrefix} Selecting next task from roadmap...`);
+    const nextTask = selectNextTask(roadmapItems);
 
     if (!nextTask) {
-        console.log(`\n${logPrefix} ✅ No pending tasks found for the current phase (${currentPhaseIdentifier}). Check checklist or advance phase in ${REQUIREMENT_FILENAME}.`);
-        return;
+        console.log(`\n${logPrefix} ✅ No actionable tasks (Not Started or In Progress) found in ${ROADMAP_FILENAME}.`);
+        return; // Nothing to do
     }
-    console.log(`${logPrefix} Selected Task #${nextTask.id}: ${nextTask.description}`);
-    console.log(`${logPrefix}   Status: ${nextTask.status}, Files: ${nextTask.responsibleFiles.join(', ')}`);
+    console.log(`${logPrefix} Selected Task -> Feature: ${nextTask.feature || 'N/A'} (Priority: ${nextTask.priority || 'N/A'}, Status: ${nextTask.status})`);
+    console.log(`${logPrefix}   Description: ${nextTask.description}`);
+    // Ensure responsibleFiles exists (needs to be added to RoadmapItem and parsed)
+    const responsibleFilesList = nextTask.responsibleFiles || [];
+    console.log(`${logPrefix}   Responsible Files: ${responsibleFilesList.join(', ') || '⚠️ None Specified!'}`);
 
     // --- Gather Context (Read Relevant Files) ---
     let codeContext = '';
     let readableFilesFound = false;
-    const processedFilePaths = new Set<string>(); // To avoid reading the same file twice if listed explicitly and via glob
+    const processedFilePaths = new Set<string>();
 
-    // **MODIFIED FILE READING LOGIC**
-    console.log(`${logPrefix} Reading content of relevant files...`);
-    const rawFilesList = nextTask.responsibleFiles
-        .map(f => f.trim().replace(/^`|`$/g, '')) // Clean backticks just in case
-        .filter(f => f && f.toLowerCase() !== 'all files'); // Filter out empty strings and "All files"
+    // Use the responsibleFilesList from the parsed roadmap item
+    const filesAndPatterns = responsibleFilesList
+        .map(f => f.trim()) // Basic trim
+        .filter(f => f);    // Filter empty entries
 
-    for (const fileOrPattern of rawFilesList) {
-        let filesToProcess: string[] = [];
-
-        // Check if it's a glob pattern
-        if (fileOrPattern.includes('*')) {
-            console.log(`  ${logPrefix} Expanding glob pattern: ${fileOrPattern}`);
-            try {
-                // Use glob.sync for simplicity here, async is also possible
-                const matchedFiles = await glob(fileOrPattern, { cwd: projectRoot, nodir: true, absolute: true });
-                filesToProcess = matchedFiles;
-                console.log(`    ${logPrefix} Found ${matchedFiles.length} file(s) matching glob.`);
-            } catch (globError) {
-                console.warn(`${logPrefix} ⚠️ Error expanding glob pattern ${fileOrPattern}. Skipping. Error: ${globError instanceof Error ? globError.message : globError}`);
-                continue; // Skip to the next pattern/file
+    if (filesAndPatterns.length === 0) {
+        console.warn(`${logPrefix} ⚠️ No responsible files listed for the selected task in ${ROADMAP_FILENAME}. Proceeding without specific file context.`);
+    } else {
+        console.log(`${logPrefix} Reading content of relevant files/patterns...`);
+        for (const fileOrPattern of filesAndPatterns) {
+            let filesToProcess: string[] = [];
+            if (fileOrPattern.includes('*')) {
+                console.log(`  ${logPrefix} Expanding glob pattern: ${fileOrPattern}`);
+                try {
+                    filesToProcess = await glob(fileOrPattern, { cwd: projectRoot, nodir: true, absolute: true });
+                    console.log(`    ${logPrefix} Found ${filesToProcess.length} file(s) matching glob.`);
+                } catch (globError) {
+                    console.warn(`${logPrefix} ⚠️ Error expanding glob pattern ${fileOrPattern}. Skipping. Error: ${globError instanceof Error ? globError.message : globError}`);
+                    continue;
+                }
+            } else {
+                filesToProcess.push(path.resolve(projectRoot, fileOrPattern));
             }
-        } else {
-            // Treat as a single file path
-            filesToProcess.push(path.resolve(projectRoot, fileOrPattern)); // Resolve relative to project root
-        }
 
-        // Process the resolved file paths (either single or from glob)
-        for (const absoluteFilePath of filesToProcess) {
-            if (processedFilePaths.has(absoluteFilePath)) {
-                continue; // Skip if already processed
-            }
-            processedFilePaths.add(absoluteFilePath);
-
-            const friendlyPath = path.relative(projectRoot, absoluteFilePath).split(path.sep).join('/'); // For comments/logging
-
-            try {
-                const fileContent = readSingleFile(absoluteFilePath);
-                codeContext += `// File: ${friendlyPath}\n\n${fileContent}\n\n---\n\n`; // Separator helps AI
-                readableFilesFound = true;
-                console.log(`    ${logPrefix} Read context from: ${friendlyPath}`);
-            } catch (e) {
-                // readSingleFile logs specific errors, just add a generic warning here
-                console.warn(`${logPrefix} ⚠️ Failed to read ${friendlyPath}. Skipping context for this file.`);
+            for (const absoluteFilePath of filesToProcess) {
+                if (processedFilePaths.has(absoluteFilePath)) continue;
+                processedFilePaths.add(absoluteFilePath);
+                const friendlyPath = path.relative(projectRoot, absoluteFilePath).split(path.sep).join('/');
+                try {
+                    const fileContent = readSingleFile(absoluteFilePath);
+                    codeContext += `// File: ${friendlyPath}\n\n${fileContent}\n\n---\n\n`;
+                    readableFilesFound = true;
+                    console.log(`    ${logPrefix} Read context from: ${friendlyPath}`);
+                } catch (e) {
+                    console.warn(`${logPrefix} ⚠️ Failed to read ${friendlyPath}. Skipping context for this file.`);
+                }
             }
         }
-    }
-    // **END MODIFIED FILE READING LOGIC**
 
-    if (!readableFilesFound && rawFilesList.length > 0) {
-        console.warn(`${logPrefix} ⚠️ All specified responsible files/patterns were unreadable or yielded no files for task #${nextTask.id}. Proceeding without file context.`);
-    } else if (rawFilesList.length === 0) {
-        console.warn(`${logPrefix} ⚠️ No specific, valid responsible files listed for task #${nextTask.id}. Proceeding without specific file context.`);
+        if (!readableFilesFound && filesAndPatterns.length > 0) {
+            console.warn(`${logPrefix} ⚠️ All specified responsible files/patterns were unreadable or yielded no files. Proceeding without file context.`);
+        }
     }
-
 
     // --- Generate Prompt for Gemini ---
     console.log(`${logPrefix} Generating prompt for Gemini...`);
@@ -171,11 +199,11 @@ export async function execute(args: CliArguments): Promise<void> {
 
     // --- Handle Result & Apply Changes ---
     if (result.type === 'error' || result.content === null) {
-        throw new Error(`Gemini service failed for task #${nextTask.id}: ${result.content ?? 'No content returned'}`);
+        throw new Error(`Gemini service failed for task "${nextTask.feature || nextTask.description}": ${result.content ?? 'No content returned'}`);
     }
 
     const geminiResponseContent = result.content;
-    const fileHeaderRegex = /^\s*\/\/\s*File:\s*([^\s\n\r]+)\s*$/gm; // Global flag is important
+    const fileHeaderRegex = /^\s*\/\/\s*File:\s*([^\s\n\r]+)\s*$/gm;
     const fileMatches = Array.from(geminiResponseContent.matchAll(fileHeaderRegex));
 
     if (fileMatches.length === 0) {
@@ -183,7 +211,7 @@ export async function execute(args: CliArguments): Promise<void> {
         console.log("\n--- Raw Gemini Response (Review Manually) ---");
         console.log(geminiResponseContent);
         console.log("--- End Raw Gemini Response ---");
-        console.log(`\n${logPrefix} IMPORTANT: Apply changes manually and update the status of Task #${nextTask.id} in ${CHECKLIST_FILENAME}.`);
+        console.log(`\n${logPrefix} IMPORTANT: Apply changes manually and update the status for "${nextTask.feature || nextTask.description}" in ${ROADMAP_FILENAME}.`);
         return;
     }
 
@@ -198,7 +226,7 @@ export async function execute(args: CliArguments): Promise<void> {
         const endIndex = (i + 1 < fileMatches.length) ? fileMatches[i + 1].index! : geminiResponseContent.length;
         const codeContent = geminiResponseContent.substring(startIndex, endIndex).trim();
 
-        if (!relativeFilePath || relativeFilePath.includes(' ') || !relativeFilePath.includes('/')) {
+        if (!relativeFilePath || !relativeFilePath.includes('/')) {
             console.warn(`${logPrefix} ⚠️ Skipping block due to potentially invalid file path extracted: ${relativeFilePath}`);
             continue;
         }
@@ -231,7 +259,7 @@ export async function execute(args: CliArguments): Promise<void> {
     console.log(`  Write Errors Encountered:     ${writeErrors}`);
     console.log(`----------------------------------`);
 
-    console.log(`\n${logPrefix} IMPORTANT: Review the applied changes using 'git diff'. Manually update the status of Task #${nextTask.id} in ${CHECKLIST_FILENAME}.`);
+    console.log(`\n${logPrefix} IMPORTANT: Review the applied changes using 'git diff'. Manually update the status for "${nextTask.feature || nextTask.description}" in ${ROADMAP_FILENAME}.`);
 
     if (writeErrors > 0) {
         throw new Error(`${writeErrors} error(s) occurred while writing files during the Develop command.`);
