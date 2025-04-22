@@ -29,6 +29,7 @@ export const EXCLUDE_PATTERNS: Set<string> = new Set([
     "coverage", // Exclude code coverage directories, as they are not part of the source code.
     ".nuxt",
     ".vscode",
+    "public",
 ]);
 
 /**
