@@ -12,6 +12,7 @@ export const INCLUDE_EXTENSIONS: Set<string> = new Set([
     ".env",
     ".yml",
     ".md",
+    ".tsx",
 ]);
 
 /**
