@@ -1,13 +1,12 @@
-// File: src/gemini/gemini.service.ts
-
 import axios, { AxiosError, AxiosResponse } from 'axios';
-import { GEMINI_API_ENDPOINT, GEMINI_API_KEY, GEMINI_MODEL_NAME } from '../config/app.config';
+// --- Import the validated 'env' object ---
+import { env } from '../config/app.config';
 // Corrected path assuming enhancement.type.ts is now in gemini/types
 import { EnhancementType } from '@/gemini/types/enhancement.type';
 import { extractCodeBlock } from '@/gemini/utils/code.extractor';
 
-// Log config when service is initialized to help with debugging and configuration verification.
-console.log(`[GeminiService] Initialized. Model: ${GEMINI_MODEL_NAME}, Endpoint: ${GEMINI_API_ENDPOINT}`);
+// --- Use the validated env object for logging ---
+console.log(`[GeminiService] Initialized. Using model: ${env.GEMINI_MODEL_NAME}`);
 
 /**
  * Represents the result of a Gemini enhancement operation.
@@ -65,6 +64,7 @@ function generatePrompt(enhancement: EnhancementType, code: string, options?: Ge
     const framework = options?.frameworkHint ?? 'jest';
 
     switch (enhancement) {
+        // --- Cases remain the same ---
         case EnhancementType.AddComments:
             return `
 Review the following TypeScript/JavaScript code. Add comprehensive TSDoc/JSDoc comments to all functions, classes, methods, and exported variables. Add clarifying inline comments for complex logic blocks where necessary. Ensure comments explain the 'why' not just the 'what'. Respond ONLY with the fully commented code block, enclosed in \`\`\`typescript ... \`\`\`. Do not include any explanatory text before or after the code block.
@@ -191,6 +191,7 @@ ${code}
     }
 }
 
+
 /**
  * Calls the Gemini API with a given prompt to get a response.
  * This function handles the communication with the Gemini API, including setting headers, handling errors, and parsing the response.
@@ -200,18 +201,25 @@ ${code}
 async function callGeminiApi(promptText: string): Promise<string | null> {
     console.log(`[GeminiService] Sending request to Gemini API (${promptText.length} chars)...`);
 
+    // --- Construct Endpoint Dynamically ---
+    const apiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL_NAME}:generateContent`;
+    // --- Use API Key from env ---
+    const apiKey = env.GEMINI_API_KEY;
+
     const requestData = { contents: [{ parts: [{ text: promptText }] }] };
     const config = {
         headers: { 'Content-Type': 'application/json' },
-        params: { key: GEMINI_API_KEY },
+        // --- Use API Key from env ---
+        params: { key: apiKey },
         timeout: 180000 // Increased timeout (3 minutes)
     };
 
     try {
-        const response: AxiosResponse = await axios.post(GEMINI_API_ENDPOINT, requestData, config);
+        // --- Use constructed endpoint ---
+        const response: AxiosResponse = await axios.post(apiEndpoint, requestData, config);
         const candidate = response.data?.candidates?.[0];
 
-        // --- Finish Reason Handling ---
+        // --- Finish Reason Handling (remains the same) ---
         if (candidate?.finishReason && candidate.finishReason !== "STOP") {
             console.warn(`[GeminiService] Warning: Response generation finished due to reason: ${candidate.finishReason}.`);
             let blockMessage = `// Gemini Response Issue: ${candidate.finishReason}\n// Generation may be incomplete or blocked.`;
@@ -227,17 +235,16 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
             if (candidate.finishReason === "RECITATION") {
                 console.warn("[GeminiService] Response may be incomplete due to recitation limits.");
             }
-        }
+            // Prepend warning to text if finished abnormally but not due to safety
+            const responseTextPartial = candidate?.content?.parts?.[0]?.text?.trim() ?? '';
+            return `// Gemini Warning: Finish Reason - ${candidate.finishReason}\n${responseTextPartial}`;
 
-        // --- Get Response Text ---
+        }
+        // --- Get Response Text (remains the same) ---
         const responseText = candidate?.content?.parts?.[0]?.text;
 
         if (responseText) {
             console.log(`[GeminiService] Received response (${responseText.trim().length} chars).`);
-            // Prepend warning if finished abnormally but not due to safety
-            if (candidate?.finishReason && candidate.finishReason !== "STOP" && candidate.finishReason !== "SAFETY") {
-                return `// Gemini Warning: Finish Reason - ${candidate.finishReason}\n${responseText.trim()}`;
-            }
             return responseText.trim();
         } else if (candidate?.finishReason === "SAFETY") {
             // Already handled above, returns block message
@@ -248,7 +255,7 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
             return null; // Indicate failure
         }
     } catch (error) {
-        // --- Error Handling ---
+        // --- Error Handling (remains the same) ---
         console.error("[GeminiService] ❌ Error calling Gemini API:");
         const axiosError = error as AxiosError;
         if (axiosError.response) {
@@ -327,45 +334,4 @@ export async function enhanceCodeWithGemini(
     // The 'type' field becomes less critical here, mainly distinguishing success ('text' or 'code') from 'error'.
     return { type: 'text', content: rawResponse };
 
-    /*
-    // --- Previous, more complex response handling (kept for reference) ---
-    const expectsCodeOrTextWithCode = [
-        EnhancementType.AddComments,
-        EnhancementType.GenerateTests,
-        EnhancementType.Develop
-    ].includes(enhancementType);
-    const expectsPureText = [
-        EnhancementType.Analyze,
-        EnhancementType.Explain,
-        EnhancementType.SuggestImprovements,
-        EnhancementType.GenerateDocs,
-        EnhancementType.AnalyzeArchitecture,
-        EnhancementType.GenerateModuleReadme,
-    ].includes(enhancementType);
-
-    if (expectsCodeOrTextWithCode) {
-        // For AddComments, try to extract code. If fails, return raw text.
-        // For GenerateTests/Develop, always return raw text as code might be mixed.
-        if (enhancementType === EnhancementType.AddComments) {
-            const extractedCode = extractCodeBlock(rawResponse);
-            if (extractedCode) {
-                 if (rawResponse.startsWith('// Gemini Warning:') || rawResponse.startsWith('// Gemini Safety Block:')) {
-                    console.warn(`[GeminiService] Note: Gemini response included a warning/block message before the code for ${enhancementType}.`);
-                }
-                return { type: 'code', content: extractedCode };
-            } else {
-                console.warn(`[GeminiService] Could not extract code block from Gemini response for '${enhancementType}'. Returning raw response as text.`);
-                return { type: 'text', content: rawResponse }; // Fallback
-            }
-        } else {
-            // For GenerateTests, Develop return raw response as text
-            return { type: 'text', content: rawResponse };
-        }
-    } else if (expectsPureText) {
-        return { type: 'text', content: rawResponse };
-    } else {
-        console.error(`[GeminiService] Internal Error: Unhandled enhancement type in response processing: ${enhancementType}.`);
-        return { type: 'error', content: `Internal Error: Unhandled enhancement type ${enhancementType}` };
-    }
-    */
 }
