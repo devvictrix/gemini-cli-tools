@@ -1,4 +1,4 @@
-// File: src/gemini/cli/gemini.cli.ts
+// File: gemini/cli/gemini.cli.ts
 
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
@@ -50,31 +50,31 @@ export async function runCli(processArgs: string[]): Promise<void> {
         .command( // AddComments
             `${EnhancementType.AddComments} <targetPath>`,
             'Add AI-generated comments to files.',
-            setupDefaultCommand,
+            setupDefaultCommand, // Uses prefix
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddComments } as CliArguments) // Executes the command logic
         )
         .command( // Analyze
             `${EnhancementType.Analyze} <targetPath>`,
             'Analyze code structure and quality (outputs to console).', // Clarified output
-            setupDefaultCommand,
+            setupDefaultCommand, // Uses prefix
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.Analyze } as CliArguments) // Executes the command logic
         )
         .command( // Explain
             `${EnhancementType.Explain} <targetPath>`,
             'Explain what the code does (outputs to console).', // Clarified output
-            setupDefaultCommand,
+            setupDefaultCommand, // Uses prefix
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.Explain } as CliArguments) // Executes the command logic
         )
         .command( // SuggestImprovements
             `${EnhancementType.SuggestImprovements} <targetPath>`,
             'Suggest improvements for the code (outputs to console).', // Clarified output
-            setupDefaultCommand,
+            setupDefaultCommand, // Uses prefix
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.SuggestImprovements } as CliArguments) // Executes the command logic
         )
         .command( // GenerateDocs
             `${EnhancementType.GenerateDocs} <targetPath>`,
             'Generate Markdown documentation for the project (saves to README.md).',
-            setupDefaultCommand,
+            setupDefaultCommand, // Uses prefix
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateDocs } as CliArguments) // Executes the command logic
         )
 
@@ -82,13 +82,21 @@ export async function runCli(processArgs: string[]): Promise<void> {
         .command( // AddPathComment
             `${EnhancementType.AddPathComment} <targetPath>`,
             'Add "// File: <relativePath>" comment header to files.',
-            setupDefaultCommand,
+            setupDefaultCommand, // Uses prefix
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddPathComment } as CliArguments) // Executes the command logic
         )
-        .command( // Consolidate
+        .command( // Consolidate <<< MODIFIED HERE
             `${EnhancementType.Consolidate} <targetPath>`,
-            'Consolidate code into a single output file (consolidated_output.txt).',
-            setupDefaultCommand,
+            'Consolidate code into a single output file (consolidated_output.txt). Supports filtering.', // Updated description
+            (yargsInstance) => { // Start with default setup and add the pattern option
+                return setupDefaultCommand(yargsInstance) // Include targetPath and --prefix
+                    .option('pattern', { // Add the new --pattern option
+                        alias: 'P', // Different alias than prefix's -p
+                        type: 'string',
+                        description: 'Filter: Include files matching pattern (e.g., "*cmd*", "use*.ts", "*.helper.*"). Overrides --prefix.',
+                        demandOption: false,
+                    });
+            },
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.Consolidate } as CliArguments) // Executes the command logic
         )
         .command( // InferFromData
@@ -164,7 +172,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
                         description: 'Path for the output Architecture Analysis Markdown file.',
                         default: 'AI_Architecture_Analyzed.md', // <<< Changed Default Name
                     })
-                    .option('prefix', { // Keep prefix option available if needed
+                    .option('prefix', { // Keep prefix option available if needed for specific analysis focus
                         alias: 'p',
                         type: 'string',
                         description: 'Optional filename prefix filter for included files.',
@@ -183,7 +191,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
                         type: 'string',
                         demandOption: true, // Ensure the target module directory is provided.
                     })
-                    .option('prefix', { // Keep prefix option
+                    .option('prefix', { // Keep prefix option for module-specific focus
                         alias: 'p',
                         type: 'string',
                         description: 'Optional filename prefix filter for files within the module.',

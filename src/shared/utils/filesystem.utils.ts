@@ -3,26 +3,61 @@
 import { promises as fs } from "fs";
 import * as path from "path";
 import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from '../constants/filesystem.constants';
-import { filterLines, getAllFiles } from "../helpers/filesystem.helper.js";
+import { filterLines, getAllFiles } from "../helpers/filesystem.helper.js"; // Assuming .js if built
 
-/**
- * @constant {string} logPrefix - A constant string used as a prefix for all log messages originating from this module.
- * This helps in easily identifying the source of log messages.
- */
 const logPrefix = "[FileSystemUtil]";
 
+// --- ADD patternToRegex HELPER ---
 /**
- * Finds all relevant source files within a directory based on specified criteria such as allowed extensions,
- * optional file prefix, and exclusion patterns.
- *
- * @param {string} rootDir - The root directory to search for source files in.  This should be an absolute path for consistent behavior.
- * @param {string} [filePrefix=""] - An optional file prefix to filter files by. Only files starting with this prefix will be included.
- *                                   This can be useful when you need to process only a subset of files in a directory.
- * @returns {Promise<string[]>} A promise that resolves to an array of absolute file paths that match the specified criteria.
- *                              If no files are found, an empty array is returned.
- * @throws {Error} If the target directory does not exist or is not accessible. The error message will indicate the reason for failure.
+ * Converts a simple glob-like pattern (*aaa, aaa*, *aaa*, aaa) to a RegExp.
+ * Case-insensitive matching.
+ * Escapes basic regex special characters in the non-wildcard part.
  */
+function patternToRegex(pattern: string): RegExp {
+    // Escape common regex special characters in the pattern body
+    const escapeRegex = (s: string) => s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+
+    let regexPattern = pattern;
+    let startsWithWildcard = false;
+    let endsWithWildcard = false;
+
+    if (regexPattern.startsWith('*')) {
+        startsWithWildcard = true;
+        regexPattern = regexPattern.substring(1);
+    }
+    if (regexPattern.endsWith('*')) {
+        endsWithWildcard = true;
+        regexPattern = regexPattern.substring(0, regexPattern.length - 1);
+    }
+
+    // Escape the remaining core part
+    const corePattern = escapeRegex(regexPattern);
+
+    if (!corePattern && (startsWithWildcard || endsWithWildcard)) {
+        // Handle '*' or '**' -> match anything (non-empty)
+        return /.+/i;
+    }
+
+    if (startsWithWildcard && endsWithWildcard) {
+        // Contains: *aaa* -> /aaa/i
+        return new RegExp(corePattern, 'i');
+    } else if (startsWithWildcard) {
+        // Ends with: *aaa -> /aaa$/i
+        return new RegExp(corePattern + '$', 'i');
+    } else if (endsWithWildcard) {
+        // Starts with: aaa* -> /^aaa/i
+        return new RegExp('^' + corePattern, 'i');
+    } else {
+        // Exact match: aaa -> /^aaa$/i
+        return new RegExp('^' + corePattern + '$', 'i');
+    }
+}
+// --- END HELPER ---
+
+
+// getTargetFiles function remains the same (uses only prefix)
 export async function getTargetFiles(rootDir: string, filePrefix: string = ""): Promise<string[]> {
+    // ... (implementation as before) ...
     console.log(`${logPrefix} Searching for target files in root: ${rootDir}${filePrefix ? `, prefix: '${filePrefix}'` : ''}`);
 
     let absRoot: string;
@@ -52,29 +87,44 @@ export async function getTargetFiles(rootDir: string, filePrefix: string = ""): 
     return targetFiles;
 }
 
-/**
- * Consolidates source files from a directory into a single string.  This function reads the content of all target files,
- * prepends a header with metadata about the consolidation process, and concatenates the content into a single string.
- *
- * @param {string} rootDir - The root directory to consolidate files from. This should be an absolute path for consistent behavior.
- * @param {string} [filePrefix=""] - An optional file prefix to filter files by. Only files starting with this prefix will be included.
- *                                   This can be useful when you need to consolidate only a subset of files in a directory.
- * @returns {Promise<string>} A promise that resolves to a single string containing the concatenated content of all target files.
- *                              The string includes a header with metadata about the consolidation.
- * @throws {Error} If the root directory does not exist or is not accessible.  The error message will indicate the reason for failure.
- */
-export async function getConsolidatedSources(rootDir: string, filePrefix: string = ""): Promise<string> {
-    console.log(`${logPrefix} Starting consolidation for root: ${rootDir}${filePrefix ? `, prefix: '${filePrefix}'` : ''}`);
 
-    const seenFiles: Set<string> = new Set(); // Keep track of files already processed to avoid duplicates, especially important when dealing with symlinks.
-    const now = new Date().toISOString().slice(0, 19).replace("T", " "); // Get current timestamp for the header.  This helps track when the consolidation was performed.
+/**
+ * Consolidates source files from a directory into a single string, applying filters.
+ *
+ * @param {string} rootDir - The root directory to consolidate files from.
+ * @param {string} [filePrefix] - Optional file prefix filter (used ONLY if pattern is not provided).
+ * @param {string} [pattern] - Optional filename pattern filter (e.g., "*aaa", "aaa*", "*aaa*"). Takes precedence over filePrefix.
+ * @returns {Promise<string>} A promise resolving to the consolidated content string.
+ * @throws {Error} If the root directory is not accessible.
+ */
+export async function getConsolidatedSources(
+    rootDir: string,
+    filePrefix?: string, // Keep for other commands
+    pattern?: string     // Add pattern
+): Promise<string> {
+    // Determine which filter is active and log appropriately
+    let activeFilterLog = '';
+    let filterRegex: RegExp | null = null;
+    let usePrefix = false;
+
+    if (pattern) {
+        activeFilterLog = `, pattern: '${pattern}'`;
+        filterRegex = patternToRegex(pattern);
+    } else if (filePrefix) {
+        activeFilterLog = `, prefix: '${filePrefix}'`;
+        usePrefix = true;
+    }
+    console.log(`${logPrefix} Starting consolidation for root: ${rootDir}${activeFilterLog}`);
+
+    const seenFiles: Set<string> = new Set();
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
     let absRoot: string;
     try {
-        absRoot = path.resolve(rootDir); // Resolve the root directory to an absolute path. This ensures consistent behavior regardless of the current working directory.
-        await fs.access(absRoot); // Verify we have access to the directory. This prevents errors later on if the process lacks read permissions.
+        absRoot = path.resolve(rootDir);
+        await fs.access(absRoot);
     } catch (error) {
         console.error(`${logPrefix} Error accessing root directory: ${rootDir}`);
-        throw new Error(`Failed: Cannot access root directory '${rootDir}'. ${error instanceof Error ? error.message : ''}`); // Re-throw the error with a more informative message.
+        throw new Error(`Failed: Cannot access root directory '${rootDir}'. ${error instanceof Error ? error.message : ''}`);
     }
 
     const header = `// Consolidated sources from: ${absRoot}\n` +
@@ -82,50 +132,58 @@ export async function getConsolidatedSources(rootDir: string, filePrefix: string
         `// Tool Name: gemini-poc (inspector module)\n` +
         `// Root Directory: ${absRoot}\n` +
         `// Include Extensions: ${[...INCLUDE_EXTENSIONS].sort().join(", ")}\n` +
-        `// Exclude Patterns/Files: ${[...EXCLUDE_PATTERNS, ...EXCLUDE_FILENAMES].sort().join(", ")}\n\n`; // Header containing metadata about the consolidation.  Includes important configuration information.
+        `// Exclude Patterns/Files: ${[...EXCLUDE_PATTERNS, ...EXCLUDE_FILENAMES].sort().join(", ")}\n\n`;
 
     let outputContent = header;
-    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES); // Use helper function to get all files recursively while respecting exclusion patterns.
-    console.log(`${logPrefix} Found ${allFiles.length} potential files.`);
+    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES);
+    console.log(`${logPrefix} Found ${allFiles.length} potential files (after exclusions).`);
 
     for (const filePath of allFiles) {
-        const fileName = path.basename(filePath); // Extract the filename from the full path for easier filtering.
-        if (filePrefix && !fileName.startsWith(filePrefix)) continue; // Skip files that don't match the specified prefix (if any).
-        if (!INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase())) continue; // Skip files that don't have the allowed extensions.
+        const fileName = path.basename(filePath);
+
+        // --- Apply Filtering Logic ---
+        if (filterRegex) { // Pattern takes precedence
+            if (!filterRegex.test(fileName)) continue;
+        } else if (usePrefix) { // Use prefix only if pattern wasn't provided
+            if (!fileName.startsWith(filePrefix!)) continue;
+        }
+        // --- End Filtering Logic ---
+
+        if (!INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase())) continue;
 
         let canonicalPath: string;
         try {
-            canonicalPath = await fs.realpath(filePath); // Get the absolute, canonical path to handle symlinks correctly. This is crucial to avoid processing the same file multiple times.
+            canonicalPath = await fs.realpath(filePath);
         } catch (realpathError) {
             console.warn(`${logPrefix} Warning: Could not get real path for ${filePath}. Skipping. Error: ${realpathError instanceof Error ? realpathError.message : realpathError}`);
-            continue; // Skip the file if we can't resolve its real path.  This prevents potential issues with symlinks.
+            continue;
         }
 
-        if (seenFiles.has(canonicalPath)) continue; // Skip if already processed.  This prevents duplicates, especially when dealing with symlinks.
+        if (seenFiles.has(canonicalPath)) continue;
         seenFiles.add(canonicalPath);
 
-        const relativePath = path.relative(absRoot, canonicalPath); // Get the relative path from the root directory. This is used for a more user-friendly file path in the output.
-        const friendlyPath = relativePath.split(path.sep).join("/"); // Convert the path to a platform-independent format (using forward slashes). This ensures consistency across different operating systems.
-        const commentLine = `// File: ${friendlyPath}`; // Create a comment line with the file path for easy identification in the consolidated output.
+        const relativePath = path.relative(absRoot, canonicalPath);
+        const friendlyPath = relativePath.split(path.sep).join("/");
+        const commentLine = `// File: ${friendlyPath}`;
         console.log(`  ${logPrefix} Processing: ${friendlyPath}`);
 
         let fileData: string;
         let lines: string[];
         try {
-            fileData = await fs.readFile(canonicalPath, "utf-8"); // Read the file content as UTF-8. UTF-8 is a widely supported encoding.
-            lines = fileData.split(/\r?\n/); // Split the file content into lines, handling both Windows and Unix line endings.
+            fileData = await fs.readFile(canonicalPath, "utf-8");
+            lines = fileData.split(/\r?\n/);
         } catch (error) {
             console.warn(`  ${logPrefix} Warning: Error reading ${friendlyPath}. Skipping. Error: ${error instanceof Error ? error.message : error}`);
-            continue; // Skip the file if there was an error reading it.
+            continue;
         }
 
-        const filtered = filterLines(lines, friendlyPath); // Filter the lines based on exclude patterns.  This allows removing specific lines or comments from the consolidated output.
+        const filtered = filterLines(lines, friendlyPath);
 
-        if (filtered.length > 0 || fileData.trim() !== '') { // Only add the file content if it's not completely empty after filtering or initially not empty
-            outputContent += `${commentLine}\n\n`; // Add the comment line with the file path.
-            outputContent += filtered.join("\n") + "\n\n"; // Add the filtered file content to the output, with newlines separating the lines.
+        if (filtered.length > 0 || fileData.trim() !== '') {
+            outputContent += `${commentLine}\n\n`;
+            outputContent += filtered.join("\n") + "\n\n";
         } else {
-            console.log(`  ${logPrefix} Skipping empty or fully filtered file: ${friendlyPath}`); // Log a message if the file is skipped because it's empty or fully filtered.
+            console.log(`  ${logPrefix} Skipping empty or fully filtered file: ${friendlyPath}`);
         }
     }
 
