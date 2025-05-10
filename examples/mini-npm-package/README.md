@@ -1,0 +1,1 @@
+# mini-npm-package
