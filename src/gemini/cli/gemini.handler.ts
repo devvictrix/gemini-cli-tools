@@ -1,5 +1,3 @@
-// File: src/gemini/cli/gemini.handler.ts
-
 import { CliArguments } from '@shared/types/app.type';
 import { EnhancementType } from '@/gemini/types/enhancement.type';
 
@@ -18,6 +16,7 @@ import * as generateModuleReadmeCmd from '@/gemini/commands/generate-module-read
 import * as generateTestsCmd from '@/gemini/commands/generate-tests.command';
 import * as developCmd from '@/gemini/commands/develop.command';
 import * as generateProgressReportCmd from '@/gemini/commands/generate-progress-report.command';
+import * as initCmd from '@/gemini/commands/init.command'; // New import
 
 /**
  * @constant {string} logPrefix - A constant string used as a prefix for all log messages originating from this file.
@@ -45,7 +44,8 @@ const commandHandlerMap: { [key in EnhancementType]: (args: CliArguments) => Pro
     [EnhancementType.GenerateModuleReadme]: generateModuleReadmeCmd.execute,
     [EnhancementType.GenerateTests]: generateTestsCmd.execute,
     [EnhancementType.Develop]: developCmd.execute,
-    [EnhancementType.GenerateProgressReport]: generateProgressReportCmd.execute
+    [EnhancementType.GenerateProgressReport]: generateProgressReportCmd.execute,
+    [EnhancementType.Init]: initCmd.execute, // New mapping
 };
 
 /**
@@ -67,7 +67,11 @@ export async function runCommandLogic(argv: CliArguments): Promise<void> {
     // Check if a handler was found for the given command. If not, it indicates an internal error (likely a missing entry in commandHandlerMap).
     if (!handler) {
         console.error(`${logPrefix} ❌ Internal Error: No handler found for command: ${argv.command}`);
-        process.exit(1); // Exit with an error code to signal failure to the calling process.
+        // Instead of process.exit(1), set exitCode and let yargs's .fail or .parseAsync().catch() handle the exit.
+        // This allows for more graceful shutdown and consistent error reporting through yargs.
+        process.exitCode = 1;
+        // Re-throw the error so it can be caught by the yargs .parseAsync().catch() or .fail()
+        throw new Error(`No handler found for command: ${argv.command}`);
     }
 
     try {
@@ -77,28 +81,53 @@ export async function runCommandLogic(argv: CliArguments): Promise<void> {
         console.log(`\n${logPrefix} Command '${argv.command}' finished.`);
     } catch (error) {
         // Centralized error handling: Catch any errors thrown during command execution.
-        console.error(`\n${logPrefix} ❌ Error during execution of command '${argv.command}':`);
+        // Error messages from command handlers should be user-friendly.
+        // This block primarily catches unexpected errors or ensures exitCode is set.
+
+        // Check if the error message already includes our standard prefixes to avoid double logging.
+        const isAlreadyLoggedByCommand = error instanceof Error &&
+            (
+                error.message.startsWith(logPrefix) || // General handler prefix
+                error.message.startsWith("[InitCommand]") || // Specific command prefix
+                error.message.startsWith("[DevelopCmd]") // Another specific command prefix
+                // Add other command-specific prefixes here if they log their own detailed errors
+            );
+
+        if (!isAlreadyLoggedByCommand) {
+            console.error(`\n${logPrefix} ❌ Error during execution of command '${argv.command}':`);
+        }
+
 
         if (error instanceof Error) {
-            // If the error is an instance of the built-in Error object, print its message.
-            console.error(`   Message: ${error.message}`);
+            // If the error message wasn't already logged by the command itself, log its message.
+            if (!isAlreadyLoggedByCommand) {
+                console.error(`   Message: ${error.message}`);
+            }
 
-            // Detect if the error message suggests a user input error (e.g., invalid file path).
-            // Avoid printing the full stack trace for these common errors to prevent overwhelming the user.
-            const isUserInputError = error.message.includes("Cannot access target path") ||
+            // Determine if it's a common user input error to avoid printing stack trace.
+            const isUserInputError =
+                error.message.includes("Cannot access target path") ||
                 error.message.includes("Target path for") ||
                 error.message.includes("must be a directory") ||
-                error.message.includes("must be a file");
+                error.message.includes("must be a file") ||
+                error.message.includes("is required") || // For missing arguments from yargs or command validation
+                error.message.includes("is not empty. Use --force") || // For Init command non-empty dir
+                error.message.includes("exists but is not a directory"); // For Init command path validation
 
-            if (!isUserInputError) {
-                // If it's not a user input error, print the stack trace to help with debugging.
+
+            if (!isUserInputError && error.stack) {
+                // Only print stack trace for non-user-input errors and if stack exists.
                 console.error(error.stack);
             }
         } else {
-            // If the error is not an Error object, print it as an unknown object. This is a fallback for unusual error types.
-            console.error("   Unknown error object:", error);
+            // Fallback for non-Error objects being thrown.
+            console.error("   An unknown error object was thrown:", error);
         }
         // Set the process exit code to 1 to indicate failure to the calling process.
         process.exitCode = 1;
+        // Re-throw so yargs .parseAsync().catch() can handle the final process exit.
+        // This ensures that even if a command handler itself doesn't call process.exit,
+        // the CLI exits with an error code as managed by yargs.
+        throw error;
     }
 }

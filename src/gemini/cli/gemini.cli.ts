@@ -85,7 +85,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
             setupDefaultCommand, // Uses prefix
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.AddPathComment } as CliArguments) // Executes the command logic
         )
-        .command( // Consolidate <<< MODIFIED HERE
+        .command( // Consolidate
             `${EnhancementType.Consolidate} <targetPath>`,
             'Consolidate code into a single output file (consolidated_output.txt). Supports filtering.', // Updated description
             (yargsInstance) => { // Start with default setup and add the pattern option
@@ -120,7 +120,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
         )
 
         // --- Architecture/Design System Commands ---
-        .command( // GenerateStructureDoc (Refined - no change needed here)
+        .command( // GenerateStructureDoc
             `${EnhancementType.GenerateStructureDoc} [targetPath]`, // targetPath is now optional (defaults to '.')
             'Generate a Markdown file representing the project directory structure.',
             (yargsInstance) => {
@@ -128,13 +128,13 @@ export async function runCli(processArgs: string[]): Promise<void> {
                     .positional('targetPath', {
                         describe: 'Root directory to scan.',
                         type: 'string',
-                        default: '.', // <<< Changed default to current directory
+                        default: '.',
                     })
                     .option('output', {
                         alias: 'o',
                         type: 'string',
                         description: 'Path for the output Markdown file.',
-                        default: 'Project_Structure.md', // Stays as is
+                        default: 'Project_Structure.md',
                     })
                     .option('descriptions', {
                         alias: 'd',
@@ -151,100 +151,131 @@ export async function runCli(processArgs: string[]): Promise<void> {
                         alias: 'e',
                         type: 'string',
                         description: 'Comma-separated list of patterns to exclude (e.g., "node_modules,.git").',
-                        default: '', // Default uses constants + user excludes
+                        default: '',
                     });
             },
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateStructureDoc } as CliArguments) // Executes the command logic
         )
-        .command( // AnalyzeArchitecture (Updated Default Output)
+        .command( // AnalyzeArchitecture
             `${EnhancementType.AnalyzeArchitecture} <targetPath>`,
             'Generate an AI-driven analysis of the project architecture (saves to file).',
             (yargsInstance) => {
                 return yargsInstance
                     .positional('targetPath', {
-                        describe: 'Root project directory to analyze.', // More specific description
+                        describe: 'Root project directory to analyze.',
                         type: 'string',
-                        demandOption: true, // Ensure the target path is provided
+                        demandOption: true,
                     })
                     .option('output', {
                         alias: 'o',
                         type: 'string',
                         description: 'Path for the output Architecture Analysis Markdown file.',
-                        default: 'AI_Architecture_Analyzed.md', // <<< Changed Default Name
+                        default: 'AI_Architecture_Analyzed.md',
                     })
-                    .option('prefix', { // Keep prefix option available if needed for specific analysis focus
+                    .option('prefix', {
                         alias: 'p',
                         type: 'string',
                         description: 'Optional filename prefix filter for included files.',
-                        demandOption: false, // Prefix filter is optional.
+                        demandOption: false,
                     });
             },
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.AnalyzeArchitecture } as CliArguments) // Executes the command logic
         )
-        .command( // GenerateModuleReadme (New)
+        .command( // GenerateModuleReadme
             `${EnhancementType.GenerateModuleReadme} <targetPath>`,
             'Generate a README.md for a specific module directory using AI.',
-            (yargsInstance) => { // Use builder directly as we don't need --output
+            (yargsInstance) => {
                 return yargsInstance
                     .positional('targetPath', {
-                        describe: 'Path to the module directory.', // Specific description
+                        describe: 'Path to the module directory.',
                         type: 'string',
-                        demandOption: true, // Ensure the target module directory is provided.
+                        demandOption: true,
                     })
-                    .option('prefix', { // Keep prefix option for module-specific focus
+                    .option('prefix', {
                         alias: 'p',
                         type: 'string',
                         description: 'Optional filename prefix filter for files within the module.',
-                        demandOption: false, // Prefix filter is optional.
+                        demandOption: false,
                     });
             },
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateModuleReadme } as CliArguments) // Executes the command logic
         )
         // --- End Architecture/Design System Commands ---
 
-        // --- Test Generation Command (New) ---
+        // --- Test Generation Command ---
         .command( // GenerateTests
             `${EnhancementType.GenerateTests} <targetPath>`,
-            'Generate/update unit test file(s) for source file(s) using AI (output to tests/...).', // Updated description
+            'Generate/update unit test file(s) for source file(s) using AI (output to tests/...).',
             (yargsInstance) => {
                 return yargsInstance
                     .positional('targetPath', {
-                        describe: 'Path to the source file or directory to generate tests for.', // Supports file or dir
+                        describe: 'Path to the source file or directory to generate tests for.',
                         type: 'string',
-                        demandOption: true, // Ensures the target path to source files or directories is provided
+                        demandOption: true,
                     })
-                    // Output is implicit now
                     .option('framework', {
                         alias: 'f',
                         type: 'string',
                         description: 'Testing framework hint for generation (e.g., jest, vitest, mocha).',
                         default: 'jest',
                     })
-                    .option('prefix', { // Re-added prefix for directories
+                    .option('prefix', {
                         alias: 'p',
                         type: 'string',
                         description: 'Optional filename prefix filter (if targetPath is a directory).',
-                        demandOption: false, // Prefix filter is optional.
+                        demandOption: false,
                     });
             },
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateTests } as CliArguments) // Executes the command logic
         )
         // --- End Test Generation Command ---
-        .command( // Develop (New)
+
+        // --- Auto Development Flow Commands ---
+        .command( // Init (New)
+            `${EnhancementType.Init} <targetPath>`,
+            'Initialize a new target project with basic structure and files.',
+            (yargsInstance: Argv) => { // Explicitly type yargsInstance if not inferred
+                return yargsInstance
+                    .positional('targetPath', {
+                        describe: 'Directory to initialize the new project in.',
+                        type: 'string',
+                        demandOption: true,
+                    })
+                    .option('packageName', {
+                        alias: 'n',
+                        type: 'string',
+                        description: 'The name of the new project (for package.json).',
+                        demandOption: true,
+                    })
+                    .option('description', {
+                        alias: 'd',
+                        type: 'string',
+                        description: 'A short description for the new project.',
+                        demandOption: false, // Optional
+                    })
+                    .option('force', {
+                        alias: 'f',
+                        type: 'boolean',
+                        description: 'Force initialization even if the target directory is not empty.',
+                        default: false,
+                    });
+            },
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.Init } as CliArguments)
+        )
+        .command( // Develop
             `${EnhancementType.Develop} <targetPath>`,
-            'Develop the next feature based on REQUIREMENT.md and REQUIREMENTS_CHECKLIST.md.',
+            'Develop the next feature based on FEATURE_ROADMAP.md within the target project.',
             (yargsInstance) => {
                 return yargsInstance
                     .positional('targetPath', {
-                        describe: 'Root project directory containing requirement files.',
+                        describe: 'Root project directory containing FEATURE_ROADMAP.md.',
                         type: 'string',
                         demandOption: true,
                     });
-                // Add other options if needed in the future (e.g., --force-task=<id>)
             },
-            (argv) => runCommandLogic({ ...argv, command: EnhancementType.Develop } as CliArguments) // Executes the command logic
+            (argv) => runCommandLogic({ ...argv, command: EnhancementType.Develop } as CliArguments)
         )
-        .command(
+        .command( // GenerateProgressReport
             `${EnhancementType.GenerateProgressReport} <targetPath>`,
             'Generate PROGRESS-{date}.md based on current requirements/checklist.',
             (yargsInstance) => {
@@ -254,7 +285,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
                         type: 'string',
                         demandOption: true,
                     })
-                    .option('output', { // Optional: Allow overriding output dir/name
+                    .option('output', {
                         alias: 'o',
                         type: 'string',
                         description: 'Optional path/filename for the output progress report.',
@@ -263,19 +294,23 @@ export async function runCli(processArgs: string[]): Promise<void> {
             },
             (argv) => runCommandLogic({ ...argv, command: EnhancementType.GenerateProgressReport } as CliArguments)
         )
-        .demandCommand(1, 'Please specify a valid command (action).') // Ensures that at least one command is specified.
-        .strict() // Enable strict mode to prevent unknown options.
-        .help() // Enable the help command.
-        .alias('h', 'help') // Alias 'h' for the help command.
-        .wrap(null) // Wrap the help text to the terminal width.
-        .fail((msg, err, yargs) => { // Custom error handling
+        // --- End Auto Development Flow Commands ---
+
+        .demandCommand(1, 'Please specify a valid command (action).')
+        .strict()
+        .help()
+        .alias('h', 'help')
+        .wrap(yargs.terminalWidth()) // Use yargs builtin for terminal width
+        .fail((msg, err, yargsInstance) => { // Renamed yargs to yargsInstance to avoid conflict
             if (err) {
                 console.error(`\n${logPrefix} 🚨 An unexpected error occurred during argument parsing:`);
-                console.error(err);
+                console.error(err); // Log the actual error object
                 process.exit(1); // Exit the process with an error code
             }
-            console.error(`\n${logPrefix} ❌ Error: ${msg}\n`);
-            yargs.showHelp(); // Display the help message
+            // Display the error message provided by yargs or a custom one
+            const specificMsg = msg || "Invalid command or arguments.";
+            console.error(`\n${logPrefix} ❌ Error: ${specificMsg}\n`);
+            yargsInstance.showHelp(); // Display the help message
             process.exit(1); // Exit the process with an error code
         })
         .parseAsync() // Parses the arguments asynchronously
@@ -283,7 +318,9 @@ export async function runCli(processArgs: string[]): Promise<void> {
             console.error(`\n${logPrefix} 🚨 An unexpected critical error occurred during execution:`);
             if (error instanceof Error) {
                 console.error(`   Message: ${error.message}`);
-                console.error(error.stack);
+                if (error.stack) { // Only print stack if it exists
+                    console.error(error.stack);
+                }
             } else {
                 console.error("   An unknown error object was thrown:", error);
             }

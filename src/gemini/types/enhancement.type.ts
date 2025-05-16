@@ -1,5 +1,3 @@
-// File: src/gemini/types/enhancement.type.ts
-
 /**
  * Enum representing the different types of code enhancement or utility actions
  * that can be performed by the CLI tool.
@@ -86,8 +84,21 @@ export enum EnhancementType {
 	 */
 	GenerateStructureDoc = 'GenerateStructureDoc',
 
+    /**
+     * Orchestrates AI-assisted TDD: selects task from FEATURE_ROADMAP.md,
+     * AI generates tests, AI generates code to pass tests.
+     */
 	Develop = 'Develop',
+    /**
+     * Generates a PROGRESS-{date}.md file based on current project
+     * REQUIREMENT.md and REQUIREMENTS_CHECKLIST.md.
+     */
 	GenerateProgressReport = 'GenerateProgressReport',
+    /**
+     * Initializes a new target project directory with basic structure and files
+     * suitable for use with gemini-poc.
+     */
+    Init = 'Init',
 
 	// Add more types here in the future
 }

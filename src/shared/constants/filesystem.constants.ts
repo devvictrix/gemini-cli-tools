@@ -30,6 +30,8 @@ export const EXCLUDE_PATTERNS: Set<string> = new Set([
     ".nuxt",
     ".vscode",
     "public",
+    "storage",
+    "logs",
 ]);
 
 /**
