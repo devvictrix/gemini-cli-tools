@@ -13,6 +13,7 @@ export const INCLUDE_EXTENSIONS: Set<string> = new Set([
     ".yml",
     ".md",
     ".tsx",
+    ".py",
 ]);
 
 /**
@@ -28,10 +29,14 @@ export const EXCLUDE_PATTERNS: Set<string> = new Set([
     ".git", // Exclude the Git repository directory, as it contains version control metadata.
     "coverage", // Exclude code coverage directories, as they are not part of the source code.
     ".nuxt",
+    ".output",
     ".vscode",
     "public",
     "storage",
     "logs",
+    "__pycache__",
+    ".mypy_cache",
+    ".venv",
 ]);
 
 /**
