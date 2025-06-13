@@ -1,3 +1,5 @@
+1. npm start -- Consolidate ~/OneDrive/Desktop/opt/ascend-group/sandbox/true-ecommerce-etl-pim --pattern "posax-*"
+
 # gemini-poc
 
 An AI-powered CLI assistant for (automotive) software development, featuring a Test-Driven Development workflow with Google Gemini.

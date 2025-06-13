@@ -14,6 +14,9 @@ export const INCLUDE_EXTENSIONS: Set<string> = new Set([
     ".md",
     ".tsx",
     ".py",
+    ".sh",
+    ".html",
+    ".css",
 ]);
 
 /**
@@ -33,10 +36,12 @@ export const EXCLUDE_PATTERNS: Set<string> = new Set([
     ".vscode",
     "public",
     "storage",
+    "src/storage",
     "logs",
     "__pycache__",
     ".mypy_cache",
     ".venv",
+    ".expo"
 ]);
 
 /**
