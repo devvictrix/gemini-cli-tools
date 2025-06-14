@@ -41,7 +41,8 @@ export const EXCLUDE_PATTERNS: Set<string> = new Set([
     "__pycache__",
     ".mypy_cache",
     ".venv",
-    ".expo"
+    ".expo",
+    ".next",
 ]);
 
 /**
