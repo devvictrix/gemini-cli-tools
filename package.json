@@ -17,7 +17,7 @@
     "poc"
   ],
   "author": "Your Name",
-  "license": "ISC",
+  "license": "UNLICENSED",
   "dependencies": {
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",

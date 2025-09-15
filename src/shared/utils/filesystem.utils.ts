@@ -2,8 +2,8 @@
 
 import { promises as fs } from "fs";
 import * as path from "path";
-import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES } from '../constants/filesystem.constants';
-import { filterLines, getAllFiles } from "../helpers/filesystem.helper.js"; // Assuming .js if built
+import { INCLUDE_EXTENSIONS, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES, EXCLUDE_FILENAME_WILDCARDS } from '../constants/filesystem.constants';
+import { filterLines, getAllFiles } from "../helpers/filesystem.helper";
 
 const logPrefix = "[FileSystemUtil]";
 
@@ -73,10 +73,10 @@ export async function getTargetFiles(rootDir: string, filePrefix: string = ""): 
         throw new Error(`Failed: Cannot access target directory '${rootDir}'. ${error instanceof Error ? error.message : ''}`); // Re-throw the error with a more informative message.
     }
 
-    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES); // Use helper function to get all files recursively while respecting exclusion patterns.
+    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES, EXCLUDE_FILENAME_WILDCARDS); // Use helper function to get all files recursively while respecting exclusion patterns.
     console.log(`${logPrefix} Found ${allFiles.length} potential files in directory tree.`);
 
-    const targetFiles = allFiles.filter(filePath => {
+    const targetFiles = allFiles.filter((filePath: string) => {
         const fileName = path.basename(filePath); // Extract the filename from the full path for easier filtering.
         const passesPrefix = !filePrefix || fileName.startsWith(filePrefix); // Check if the filename starts with the given prefix, or if no prefix is specified.
         const passesExtension = INCLUDE_EXTENSIONS.has(path.extname(fileName).toLowerCase()); // Check if the file extension is in the allowed list (case-insensitive).
@@ -132,10 +132,10 @@ export async function getConsolidatedSources(
         `// Tool Name: gemini-poc (inspector module)\n` +
         `// Root Directory: ${absRoot}\n` +
         `// Include Extensions: ${[...INCLUDE_EXTENSIONS].sort().join(", ")}\n` +
-        `// Exclude Patterns/Files: ${[...EXCLUDE_PATTERNS, ...EXCLUDE_FILENAMES].sort().join(", ")}\n\n`;
+        `// Exclude Patterns/Files: ${[...EXCLUDE_PATTERNS, ...EXCLUDE_FILENAMES, ...EXCLUDE_FILENAME_WILDCARDS].sort().join(", ")}\n\n`;
 
     let outputContent = header;
-    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES);
+    const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES, EXCLUDE_FILENAME_WILDCARDS);
     console.log(`${logPrefix} Found ${allFiles.length} potential files (after exclusions).`);
 
     for (const filePath of allFiles) {

@@ -6,17 +6,22 @@
  * This helps focus the inspection on relevant source code and configuration files, improving efficiency.
  */
 export const INCLUDE_EXTENSIONS: Set<string> = new Set([
-    ".ts",
-    ".js",
-    ".json",
-    ".env",
-    ".yml",
-    ".md",
-    ".tsx",
-    ".py",
-    ".sh",
-    ".html",
-    ".css",
+  ".ts",
+  ".js",
+  ".json",
+  ".env",
+  ".yml",
+  ".yaml",
+  ".md",
+  ".tsx",
+  ".py",
+  ".sh",
+  ".html",
+  ".css",
+  ".go",
+  ".bru",
+  ".sql",
+  ".prisma",
 ]);
 
 /**
@@ -26,23 +31,27 @@ export const INCLUDE_EXTENSIONS: Set<string> = new Set([
  * Excluding these patterns significantly reduces processing time and prevents potential errors.
  */
 export const EXCLUDE_PATTERNS: Set<string> = new Set([
-    "node_modules", // Exclude dependency directories as they are usually irrelevant for source code analysis.
-    "dist", // Exclude distribution directories containing compiled/transpiled code.
-    "build", // Exclude build directories containing compiled/transpiled code.
-    ".git", // Exclude the Git repository directory, as it contains version control metadata.
-    "coverage", // Exclude code coverage directories, as they are not part of the source code.
-    ".nuxt",
-    ".output",
-    ".vscode",
-    "public",
-    "storage",
-    "src/storage",
-    "logs",
-    "__pycache__",
-    ".mypy_cache",
-    ".venv",
-    ".expo",
-    ".next",
+  "node_modules", // Exclude dependency directories as they are usually irrelevant for source code analysis.
+  "dist", // Exclude distribution directories containing compiled/transpiled code.
+  "build", // Exclude build directories containing compiled/transpiled code.
+  ".git", // Exclude the Git repository directory, as it contains version control metadata.
+  "coverage", // Exclude code coverage directories, as they are not part of the source code.
+  ".nuxt",
+  ".output",
+  ".vscode",
+  "public",
+  "storage",
+  "src/storage",
+  "logs",
+  "__pycache__",
+  ".mypy_cache",
+  ".venv",
+  ".expo",
+  ".next",
+
+  "kiosk-ui",
+  "sound-api",
+  "queue-ui",
 ]);
 
 /**
@@ -52,10 +61,27 @@ export const EXCLUDE_PATTERNS: Set<string> = new Set([
  * This improves the accuracy of the analysis by preventing the inclusion of irrelevant data.
  */
 export const EXCLUDE_FILENAMES: Set<string> = new Set([
-    "package-lock.json", // Exclude the package-lock.json file, as it is not part of the source code.
-    "consolidated_sources.ts", // Exclude potential consolidation output if run in src, to prevent analysis of generated code.
-    "consolidated_output.txt", // Exclude consolidation output, which is the result of a previous analysis.
-    "code.extractor.ts", // Exclude utility if present, to avoid analyzing the extraction tool itself.
-    "README.md", // Exclude generated docs, as they are not source code.
-    "docs.md", // Exclude previously generated docs just in case, to avoid redundant processing.
+  "package-lock.json", // Exclude the package-lock.json file, as it is not part of the source code.
+  "consolidated_sources.ts", // Exclude potential consolidation output if run in src, to prevent analysis of generated code.
+  "consolidated_output.txt", // Exclude consolidation output, which is the result of a previous analysis.
+  "code.extractor.ts", // Exclude utility if present, to avoid analyzing the extraction tool itself.
+  "README.md", // Exclude generated docs, as they are not source code.
+  "docs.md", // Exclude previously generated docs just in case, to avoid redundant processing.
+]);
+
+/**
+ * Set of wildcard filename patterns to exclude during inspection.
+ * Files matching these patterns will be skipped.
+ * This supports glob-like patterns for more flexible file exclusion.
+ */
+export const EXCLUDE_FILENAME_WILDCARDS: Set<string> = new Set([
+  "*.spec.ts",
+  "*.spec.tsx",
+  "*.test.ts",
+  "*.test.tsx",
+
+  "*mock*",
+  "*mocks*",
+
+  // "*.json",
 ]);

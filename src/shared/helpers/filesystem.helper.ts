@@ -10,6 +10,20 @@ import * as path from "path";
 const logPrefix = "[FileSystemHelper]";
 
 /**
+ * Converts a simple wildcard pattern (e.g., "*.ts", "file.*") into a RegExp object.
+ * This is a helper function to enable glob-like file matching for exclusions.
+ * @param pattern The wildcard string.
+ * @returns A RegExp object for matching against filenames.
+ */
+function wildcardToRegex(pattern: string): RegExp {
+    // Escape regex special characters, then convert wildcard '*' to '.*'
+    const escapedPattern = pattern.replace(/[-\/\\^$+.()|[\]{}]/g, '\\$&');
+    const regexPattern = escapedPattern.replace(/\*/g, '.*');
+    return new RegExp(`^${regexPattern}$`, 'i'); // Anchor to start/end and make case-insensitive
+}
+
+
+/**
  * Recursively traverses a directory and returns all file paths, respecting exclusion patterns.
  * This function is designed to efficiently gather all files within a directory structure,
  * while allowing specific directories and files to be excluded from the results. This is
@@ -23,6 +37,7 @@ const logPrefix = "[FileSystemHelper]";
  *                                        If a directory or file name is present in this set, it will be skipped.
  * @param {Set<string>} excludeFilenames - A set of specific filenames to exclude from the traversal.
  *                                         This allows for the exclusion of specific files regardless of their location.
+ * @param {Set<string>} excludeWildcards - A set of wildcard patterns for filenames to exclude.
  * @returns {Promise<string[]>} A promise that resolves to an array of file paths.  The array contains the absolute paths
  *                              of all files found within the directory, excluding those that matched the exclusion patterns.
  * @throws {Error} If there is an error reading a directory or statting a file. Errors are logged to the console.
@@ -30,24 +45,32 @@ const logPrefix = "[FileSystemHelper]";
 export async function getAllFiles(
     dir: string,
     excludePatterns: Set<string>,
-    excludeFilenames: Set<string>
+    excludeFilenames: Set<string>,
+    excludeWildcards: Set<string>
 ): Promise<string[]> {
+    const wildcardRegexes = Array.from(excludeWildcards).map(wildcardToRegex);
     let results: string[] = [];
     try {
         const list = await fs.readdir(dir); // Read the contents of the directory
         for (const file of list) {
             const filePath = path.join(dir, file); // Create the full file path
 
-            // Check if the current file or directory should be excluded based on the provided patterns or filenames.
+            // Check if the current file or directory should be excluded.
             if (excludePatterns.has(file) || excludeFilenames.has(file)) {
-                continue; // Skip files that match the exclude patterns or filenames
+                continue; // Skip if it matches exact directory/file exclusion
             }
+
+            // Test filename against wildcard patterns
+            if (wildcardRegexes.some(regex => regex.test(file))) {
+                continue;
+            }
+
 
             try {
                 const stat = await fs.stat(filePath); // Get file/directory stats
                 if (stat && stat.isDirectory()) {
                     // If the current path is a directory, recursively call getAllFiles to traverse it.
-                    results = results.concat(await getAllFiles(filePath, excludePatterns, excludeFilenames)); // Recursively call getAllFiles for directories
+                    results = results.concat(await getAllFiles(filePath, excludePatterns, excludeFilenames, excludeWildcards)); // Recurse
                 } else {
                     results.push(filePath); // Add file path to results
                 }
