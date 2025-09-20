@@ -1,0 +1,7 @@
+testName,method,url,queryParams,body,thresholds
+Get All Crocodiles,GET,https://api.test.k6.io/public/crocodiles/,,,"{""http_req_duration"":[""p(95)<300""],""http_req_failed"":[""rate<0.01""]}"
+Get Specific Crocodile,GET,https://api.test.k6.io/public/crocodiles/1/,,,"{""http_req_duration"":[""p(95)<200""]}"
+Login to System,POST,https://api.test.k6.io/auth/token/login/,,"{""username"":""testuser"",""password"":""testpassword""}","{""http_req_duration"":[""p(95)<500""]}"
+"Get My Crocodiles (Auth Required)",GET,https://api.test.k6.io/my/crocodiles/,"{""token"":""your-auth-token-here""}",,"{""http_reqs"":[""count>5""]}"
+"Get Products with Limit",GET,https://dummyjson.com/products,"{""limit"":5}",,"{""http_req_duration"":[""p(95)<400""]}"
+"Add New Product",POST,https://dummyjson.com/products/add,,"{""title"":""Perfume Oil"",""description"":""Mega Discount, Impression of A...""}","{""http_req_duration"":[""p(95)<600""],""http_req_failed"":[""rate<0.05""]}"

@@ -5,8 +5,9 @@
   "main": "dist/app.js",
   "scripts": {
     "clean": "rimraf ./dist",
-    "build": "npm run clean && tsc",
-    "start": "node dist/index.js",
+    "copy-assets": "copyfiles -u 1 \"src/**/*.js\" dist/",
+    "build": "npm run clean && tsc && npm run copy-assets",
+    "start": "node -r module-alias/register dist/index.js",
     "dev": "tsx src/index.ts",
     "test": "jest"
   },
@@ -20,9 +21,11 @@
   "license": "UNLICENSED",
   "dependencies": {
     "axios": "^1.7.2",
+    "csv-parse": "^6.1.0",
     "dotenv": "^16.4.5",
     "module-alias": "^2.2.3",
     "schema-env": "^2.1.5",
+    "xlsx": "^0.18.5",
     "yargs": "^17.7.2",
     "zod": "^3.24.3"
   },
@@ -34,6 +37,7 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^20.17.30",
     "@types/yargs": "^17.0.33",
+    "copyfiles": "^2.4.1",
     "eslint": "^9.24.0",
     "glob": "^11.0.1",
     "globals": "^16.0.0",
@@ -43,6 +47,7 @@
     "ts-jest": "^29.3.2",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
+    "tsconfig-paths": "^4.2.0",
     "tsx": "^4.10.5",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.30.1"
