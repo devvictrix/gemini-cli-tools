@@ -126,6 +126,20 @@ export async function runTestsFromDataSource(
   await fs.writeFile(scriptPath, finalScript);
   console.log(`${logPrefix} Master script generated at ${scriptPath}`);
 
+  // *** FIX: Ensure the output directory exists before running k6 ***
+  if (outputDir) {
+    try {
+      await fs.mkdir(outputDir, { recursive: true });
+      console.log(`${logPrefix} Ensured output directory exists: ${outputDir}`);
+    } catch (e) {
+      console.error(
+        `${logPrefix} Failed to create output directory: ${outputDir}`
+      );
+      throw e;
+    }
+  }
+  // *** END FIX ***
+
   const tempJsonForHtml = htmlReportPath
     ? path.join(process.cwd(), `_temp_report_${Date.now()}.json`)
     : undefined;
