@@ -1,7 +1,4 @@
-testName,method,url,queryParams,body,thresholds
-Get All Crocodiles,GET,https://api.test.k6.io/public/crocodiles/,,,"{""http_req_duration"":[""p(95)<300""],""http_req_failed"":[""rate<0.01""]}"
-Get Specific Crocodile,GET,https://api.test.k6.io/public/crocodiles/1/,,,"{""http_req_duration"":[""p(95)<200""]}"
-Login to System,POST,https://api.test.k6.io/auth/token/login/,,"{""username"":""testuser"",""password"":""testpassword""}","{""http_req_duration"":[""p(95)<500""]}"
-"Get My Crocodiles (Auth Required)",GET,https://api.test.k6.io/my/crocodiles/,"{""token"":""your-auth-token-here""}",,"{""http_reqs"":[""count>5""]}"
-"Get Products with Limit",GET,https://dummyjson.com/products,"{""limit"":5}",,"{""http_req_duration"":[""p(95)<400""]}"
-"Add New Product",POST,https://dummyjson.com/products/add,,"{""title"":""Perfume Oil"",""description"":""Mega Discount, Impression of A...""}","{""http_req_duration"":[""p(95)<600""],""http_req_failed"":[""rate<0.05""]}"
+testName,description,tags,url,method,headers,queryParams,body,extract,checks,thresholds,executorOptions
+"Create a New Product","Creates a product and extracts its ID","critical","https://dummyjson.com/products/add","POST","{""Content-Type"":""application/json""}","","{""title"":""Awesome T-Shirt #{{$randomInt}}""}","{""newProductId"":""id""}","{""ID > 0"":""r=>r.json().id>0""}","{""http_req_duration"":[""p(95)<500""]}","{""executor"":""per-vu-iterations"",""vus"":1,""iterations"":1}"
+"Get the New Product","Uses the extracted ID to fetch the new product","critical","https://dummyjson.com/products/{{newProductId}}","GET","","","","","{""Title matches"":""r=>r.json().title.includes('T-Shirt')""}","{""http_req_duration"":[""p(95)<200""]}","{""executor"":""per-vu-iterations"",""vus"":1,""iterations"":1}"
+"Update the New Product","Uses the extracted ID to update the product","","https://dummyjson.com/products/{{newProductId}}","PUT","{""Content-Type"":""application/json""}","","{""title"":""An Even Better T-Shirt""}","","","{""http_req_duration"":[""p(95)<600""]}","{""executor"":""per-vu-iterations"",""vus"":1,""iterations"":1}"

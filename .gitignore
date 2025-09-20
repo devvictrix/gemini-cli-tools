@@ -144,3 +144,4 @@ build/Release
 consolidated_output.txt
 specs/
 docs/
+k6-results/

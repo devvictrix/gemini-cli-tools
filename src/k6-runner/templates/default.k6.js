@@ -1,44 +1,39 @@
 // File: src/k6-runner/templates/default.k6.js
 
 import http from "k6/http";
-import { check, sleep } from "k6";
+import { check, sleep, group } from "k6";
 
-// --- TEMPLATE PLACEHOLDERS ---
-const TEST_NAME = "__TEST_NAME__";
-const METHOD = "__METHOD__";
-const URL = "__URL__";
-const QUERY_PARAMS = __QUERY_PARAMS__;
-const BODY = __BODY__;
-const THRESHOLDS_OBJECT = __THRESHOLDS__;
-// --- END TEMPLATE PLACEHOLDERS ---
+// --- PLACEHOLDERS ---
+const SCENARIOS_OBJECT = __SCENARIOS_OBJECT__;
+const THRESHOLDS_OBJECT = __THRESHOLDS_OBJECT__;
+// --- END PLACEHOLDERS ---
+
+let extractedVars = {};
 
 export const options = {
-  scenarios: {
-    [TEST_NAME]: {
-      executor: "constant-arrival-rate",
-      rate: 10,
-      duration: "30s",
-      preAllocatedVUs: 10,
-      maxVUs: 50,
-    },
-  },
+  scenarios: SCENARIOS_OBJECT,
   thresholds: THRESHOLDS_OBJECT,
 };
 
-export default function () {
-  const url = QUERY_PARAMS
-    ? `${URL}?${new URLSearchParams(QUERY_PARAMS)}`
-    : URL;
-  const params = {
-    headers: { "Content-Type": "application/json" },
-  };
-  const body = BODY ? JSON.stringify(BODY) : null;
-
-  const res = http.request(METHOD.toLowerCase(), url, body, params);
-
-  check(res, {
-    "status is 2xx": (r) => r.status >= 200 && r.status < 300,
-  });
-
-  sleep(1);
+function getJsonValue(obj, path) {
+  if (!obj || !path) return undefined;
+  return path.split(".").reduce((o, k) => (o || {})[k], obj);
 }
+
+function replacePlaceholders(target, vars) {
+  let jsonString = JSON.stringify(target);
+  jsonString = jsonString.replace(
+    /\{\{\$randomInt\((\d+),(\d+)\)\}\}/g,
+    (_, min, max) =>
+      Math.floor(Math.random() * (parseInt(max) - parseInt(min) + 1)) +
+      parseInt(min)
+  );
+  jsonString = jsonString.replace(
+    /\{\{(\w+)\}\}/g,
+    (_, varName) => vars[varName] || ""
+  );
+  return JSON.parse(jsonString);
+}
+
+// --- INJECTED TEST FUNCTIONS WILL GO HERE ---
+__INJECTED_TEST_FUNCTIONS__;

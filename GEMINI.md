@@ -45,7 +45,25 @@ While many architectures exist, a modular approach is our default blueprint for 
   - `routes/`: Input routing definitions.
   - `index.ts`: The module's public contract.
 
-## 4. The Process of Creation: The Development Lifecycle
+#### 4. The Process of Repair: The Debugging Lifecycle
+
+Bugs are not a moral failing; they are an expected and valuable part of the development process. A bug is a symptom of a misunderstanding between the developer and the machine. Our process for repairing them must be as disciplined as our process for creation.
+
+##### **The Foundational Mindset: The Scientist**
+-   **Embrace Humility:** The computer is executing flawed instructions perfectly. Assume the bug is in our code, not the platform.
+-   **Trust the Error:** Read every word of the error message and stack trace. The computer is trying to tell you where it hurts.
+-   **Apply Ockham's Razor:** The simplest explanation is the most likely. Suspect a typo or a `null` value before a bug in the compiler.
+
+##### **The Systematic Process**
+For any bug, you must follow these stages in order:
+
+1.  **Reproduce:** Reliably reproduce the bug. **This is non-negotiable.** Create a failing unit test that specifically targets the bug. This test is your proof that the bug exists.
+2.  **Isolate:** Narrow the search space. Use **Divide and Conquer**—comment out code until the bug disappears, then reintroduce code piece by piece until the bug reappears. Your goal is to isolate the single line or interaction that causes the failure.
+3.  **Diagnose (The Five Whys):** Find the *root cause*, not just the symptom. Ask "Why?" repeatedly until you move past the immediate error (e.g., "null pointer exception") to the foundational logic flaw (e.g., "the token refresh logic fails to handle a network timeout").
+4.  **Fix:** Write the absolute minimal amount of code required to make the failing unit test pass. Do not refactor or add features at this stage.
+5.  **Verify:** Run the **entire test suite**, not just the single failing test. This ensures your fix has not introduced a regression (a new bug) elsewhere in the system. Once all tests pass, the fix is considered complete.
+
+## 5. The Process of Creation: The Development Lifecycle
 
 A disciplined process ensures that principles are applied consistently. For any significant task, follow these stages:
 1.  **Clarify:** Define the problem and acceptance criteria.
@@ -54,19 +72,19 @@ A disciplined process ensures that principles are applied consistently. For any 
 4.  **Verify:** Prove correctness through a robust testing strategy.
 5.  **Deliver:** Summarize the work clearly, following communication protocols.
 
-## 5. The Pillars of Reliability: Quality Assurance
+## 6. The Pillars of Reliability: Quality Assurance
 
 Software is only as good as its reliability.
 - **Testing Pyramid:** Prioritize fast unit tests, have fewer integration tests, and a minimal number of E2E tests. Code is incomplete without tests.
 - **Structured Logging:** Log events in a structured format (e.g., JSON) with clear context to ensure observability. Never use `console.log` for application events.
 - **Predictable Error Handling:** APIs must have a standardized success and error response format. Use custom error types to represent domain-specific failures.
 
-## 6. The Language of Collaboration: Version Control
+## 7. The Language of Collaboration: Version Control
 
 A clean history is a form of communication and a vital project asset.
 - **Conventional Commits:** All commit messages must follow the `<type>(<scope>): <subject>` format. This provides a clear, machine-readable history of changes.
 
-## 7. Application and Adaptability
+## 8. Application and Adaptability
 
 These principles are universal. Their specific implementation, however, is adapted to the context of the technology stack. Your task is to apply this universal blueprint to the specific tools at hand.
 - Whether implementing a repository in C# with Entity Framework or in TypeScript with Prisma, the principle of Dependency Inversion still applies.

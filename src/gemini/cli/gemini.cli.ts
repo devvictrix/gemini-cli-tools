@@ -80,8 +80,6 @@ export async function runCli(processArgs: string[]): Promise<void> {
           command: EnhancementType.GenerateDocs,
         } as CliArguments)
     )
-
-    // --- Local Manipulation Commands ---
     .command(
       `${EnhancementType.AddPathComment} <targetPath>`,
       'Add "// File: <relativePath>" comment header to files.',
@@ -133,18 +131,40 @@ export async function runCli(processArgs: string[]): Promise<void> {
           command: EnhancementType.InferFromData,
         } as CliArguments)
     )
-
-    // --- Architecture/Design System Commands ---
     .command(
       `${EnhancementType.GenerateStructureDoc} [targetPath]`,
       "Generate a Markdown file representing the project directory structure.",
       (yargsInstance) => {
-        return yargsInstance.positional("targetPath", {
-          describe: "Root directory to scan.",
-          type: "string",
-          default: ".",
-        });
-        // ... other options for this command
+        return yargsInstance
+          .positional("targetPath", {
+            describe: "Root directory to scan.",
+            type: "string",
+            default: ".",
+          })
+          .option("output", {
+            alias: "o",
+            type: "string",
+            description: "Path for the output Markdown file.",
+            default: "Project_Structure.md",
+          })
+          .option("descriptions", {
+            alias: "d",
+            type: "boolean",
+            description: "Include standard descriptions for known directories.",
+            default: false,
+          })
+          .option("depth", {
+            alias: "L",
+            type: "number",
+            description: "Maximum directory depth to display.",
+          })
+          .option("exclude", {
+            alias: "e",
+            type: "string",
+            description:
+              'Comma-separated list of patterns to exclude (e.g., "node_modules,.git").',
+            default: "",
+          });
       },
       (argv) =>
         runCommandLogic({
@@ -152,9 +172,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
           command: EnhancementType.GenerateStructureDoc,
         } as CliArguments)
     )
-    // ... (other architecture commands remain here) ...
     .command(
-      // AnalyzeArchitecture
       `${EnhancementType.AnalyzeArchitecture} <targetPath>`,
       "Generate an AI-driven analysis of the project architecture (saves to file).",
       (yargsInstance) => {
@@ -185,7 +203,6 @@ export async function runCli(processArgs: string[]): Promise<void> {
         } as CliArguments)
     )
     .command(
-      // GenerateModuleReadme
       `${EnhancementType.GenerateModuleReadme} <targetPath>`,
       "Generate a README.md for a specific module directory using AI.",
       (yargsInstance) => {
@@ -209,10 +226,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
           command: EnhancementType.GenerateModuleReadme,
         } as CliArguments)
     )
-
-    // --- Test Generation Command ---
     .command(
-      // GenerateTests
       `${EnhancementType.GenerateTests} <targetPath>`,
       "Generate/update unit test file(s) for source file(s) using AI (output to tests/...).",
       (yargsInstance) => {
@@ -244,19 +258,35 @@ export async function runCli(processArgs: string[]): Promise<void> {
           command: EnhancementType.GenerateTests,
         } as CliArguments)
     )
-
-    // --- Auto Development Flow Commands ---
     .command(
-      // Init
       `${EnhancementType.Init} <targetPath>`,
       "Initialize a new target project with basic structure and files.",
       (yargsInstance: Argv) => {
-        return yargsInstance.positional("targetPath", {
-          describe: "Directory to initialize the new project in.",
-          type: "string",
-          demandOption: true,
-        });
-        // ... other options for this command
+        return yargsInstance
+          .positional("targetPath", {
+            describe: "Directory to initialize the new project in.",
+            type: "string",
+            demandOption: true,
+          })
+          .option("packageName", {
+            alias: "n",
+            type: "string",
+            description: "The name of the new project (for package.json).",
+            demandOption: true,
+          })
+          .option("description", {
+            alias: "d",
+            type: "string",
+            description: "A short description for the new project.",
+            demandOption: false,
+          })
+          .option("force", {
+            alias: "f",
+            type: "boolean",
+            description:
+              "Force initialization even if the target directory is not empty.",
+            default: false,
+          });
       },
       (argv) =>
         runCommandLogic({
@@ -264,9 +294,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
           command: EnhancementType.Init,
         } as CliArguments)
     )
-    // ... (other dev flow commands remain here) ...
     .command(
-      // Develop
       `${EnhancementType.Develop} <targetPath>`,
       "Develop the next feature based on FEATURE_ROADMAP.md within the target project.",
       (yargsInstance) => {
@@ -283,7 +311,6 @@ export async function runCli(processArgs: string[]): Promise<void> {
         } as CliArguments)
     )
     .command(
-      // GenerateProgressReport
       `${EnhancementType.GenerateProgressReport} <targetPath>`,
       "Generate PROGRESS-{date}.md based on current requirements/checklist.",
       (yargsInstance) => {
@@ -309,7 +336,7 @@ export async function runCli(processArgs: string[]): Promise<void> {
         } as CliArguments)
     )
     .command(
-      `${EnhancementType.RunK6} <targetPath>`, // This now correctly resolves to "run-k6 <targetPath>"
+      `${EnhancementType.RunK6} <targetPath>`,
       "Run data-driven k6 tests from a source file (XLSX or CSV).",
       (yargsInstance) => {
         return yargsInstance
@@ -321,8 +348,21 @@ export async function runCli(processArgs: string[]): Promise<void> {
           .option("output", {
             alias: "o",
             type: "string",
+            description: "Optional directory path to save raw summary reports.",
+            demandOption: false,
+          })
+          .option("summaryFormat", {
+            alias: "f",
+            type: "string",
+            description: "Format for raw summary reports (json or csv).",
+            default: "json",
+            choices: ["json", "csv"],
+          })
+          .option("htmlReport", {
+            alias: "H",
+            type: "string",
             description:
-              "Optional directory path to save JSON summary reports.",
+              "Path to save a consolidated HTML report for the entire run.",
             demandOption: false,
           });
       },
@@ -332,10 +372,6 @@ export async function runCli(processArgs: string[]): Promise<void> {
           command: EnhancementType.RunK6,
         } as CliArguments)
     )
-
-    .demandCommand(1, "Please specify a valid command (action).")
-    .strict()
-
     .demandCommand(1, "Please specify a valid command (action).")
     .strict()
     .help()
