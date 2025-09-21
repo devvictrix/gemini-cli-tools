@@ -4,7 +4,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as xlsx from "xlsx";
 import { parse as parseCsv } from "csv-parse/sync";
-import { TestCase, TestCaseSchema } from "@/k6-runner/types/k6-runner.schema";
+import { TestCase, TestCaseSchema } from "@/k6/types/k6.schema";
 
 const logPrefix = "[DataSourceParser]";
 

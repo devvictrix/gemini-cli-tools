@@ -1,12 +1,12 @@
-// File: src/k6-runner/services/k6-runner.service.ts
+// File: src/k6/services/k6.service.ts
 
 import { exec } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { TestCase } from "@/k6-runner/types/k6-runner.schema";
-import { parseDataSourceFile } from "@/k6-runner/parsers/dataSource.parser";
+import { TestCase } from "@/k6/types/k6.schema";
+import { parseDataSourceFile } from "@/k6/parsers/data-source.parser";
 
-const logPrefix = "[K6RunnerService]";
+const logPrefix = "[K6Service]";
 
 function promisifiedExec(command: string): Promise<void> {
   return new Promise((resolve, reject) => {

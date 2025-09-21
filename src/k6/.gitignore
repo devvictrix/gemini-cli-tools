@@ -1,0 +1,8 @@
+# Ignore all test result summaries
+results/*
+!results/.gitkeep
+
+# Ignore all data files except the example
+data/*
+!data/example-data.csv
+!data/.gitkeep

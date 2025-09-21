@@ -1,0 +1,9 @@
+Version,Status,Priority,Epic,Feature Name,Description
+v0.1.0,Done,Critical,"Core Functionality","Initial Data-Driven Runner","Establish the basic framework for running k6 tests from a CSV file. Support for simple GET requests and basic response checks."
+v0.1.0,Done,Critical,"Core Functionality","Basic Reporting","Implement default summary report generation (JSON/CSV) to the k6/results/ directory."
+v0.2.0,Done,High,"Test Flexibility","Expanded HTTP Method Support","Add support for POST, PUT, and DELETE methods, including handling for JSON request bodies and custom headers."
+v0.2.0,Not Started,High,"Test Flexibility","XLSX Data Source Support","Enable the parser to read test cases from Microsoft Excel (.xlsx) files in addition to CSV."
+v1.0.0,Done,Medium,"Advanced Testing","Dynamic Variable Extraction","Implement the 'extract' feature to capture values from a response (e.g., auth tokens, IDs) and reuse them in subsequent requests within a scenario."
+v1.0.0,Not Started,Medium,"Advanced Testing","Custom Thresholds per Test","Allow users to define performance thresholds directly in the data source file to programmatically pass/fail tests."
+v1.0.0,Waiting Enablement,Low,"Reporting","Enhanced HTML Report","Finalize and stabilize the integration with k6-html-reporter for generating comprehensive, user-friendly reports from test runs."
+v1.1.0,Not Started,High,"Monitoring & Analysis","Advanced Reporting & Live Monitoring","Integrate k6 with a real-time monitoring stack (e.g., Prometheus & Grafana) via a new --monitoring flag to visualize live test metrics."

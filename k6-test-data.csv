@@ -1,2 +1,0 @@
-testName,description,url,method,body,extract,checks
-"Full Product Workflow","Creates, validates, and updates a product in a single workflow.","https://dummyjson.com/products/add","POST","{""title"":""Awesome T-Shirt #{{$randomInt}}""}","{""newProductId"":""id""}","{""Create: status is 201"":""r=>r.status===201"", ""Create: ID > 0"":""r=>r.json().id>0""}"

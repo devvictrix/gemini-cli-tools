@@ -3,7 +3,7 @@
 import path from "path";
 import { CliArguments } from "@shared/types/app.type";
 import { EnhancementType } from "@/gemini/types/enhancement.type";
-import { runTestsFromDataSource } from "@/k6-runner/services/k6-runner.service";
+import { runTestsFromDataSource } from "@/k6/services/k6.service";
 
 const logPrefix = "[RunK6Command]";
 

@@ -1,4 +1,4 @@
-// File: src/k6-runner/types/k6-runner.schema.ts
+// File: src/k6/types/k6.schema.ts
 
 import { z } from "zod";
 
