@@ -11,13 +11,12 @@ import { generateSummaryCsv } from "./results.service";
 
 const logPrefix = "[K6Service]";
 
-// --- Embedded k6 Script Template ---
 const K6_SCRIPT_TEMPLATE = `
 import http from "k6/http";
 import { check, sleep, group } from "k6";
 const SCENARIOS_OBJECT = __SCENARIOS_OBJECT__;
 const THRESHOLDS_OBJECT = __THRESHOLDS_OBJECT__;
-let extractedVars = {};
+
 export const options = { scenarios: SCENARIOS_OBJECT, thresholds: THRESHOLDS_OBJECT };
 function getJsonValue(obj, path) { if (!obj || typeof path !== 'string') return undefined; return path.split(".").reduce((o, k) => (o || {})[k], obj); }
 function replacePlaceholders(target, vars) { if (target === null || target === undefined) return target; let jsonString = JSON.stringify(target); jsonString = jsonString.replace(/\\"{\\{\\$randomInt\\((\\d+),(\\d+)\\)\\}}\\"/g, (_, min, max) => Math.floor(Math.random() * (parseInt(max) - parseInt(min) + 1)) + parseInt(min)); jsonString = jsonString.replace(/\\{\\{(\\w+)\\}\\}/g, (_, varName) => vars[varName] || ""); return JSON.parse(jsonString); }
@@ -74,6 +73,7 @@ class MockServer {
       });
     });
   }
+
   public stop(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.server) {
@@ -136,12 +136,32 @@ function generateScenarioFunction(
     .map(
       (step) => `
     group("${step.testName}", function() {
-        const url = replacePlaceholders(${JSON.stringify(step.url)}, extractedVars);
-        const body = ${step.body ? JSON.stringify(step.body) : "null"};
-        const resolvedBody = body ? replacePlaceholders(body, extractedVars) : null;
-        const headers = replacePlaceholders(${JSON.stringify(step.headers || {})}, extractedVars);
-        const params = { headers: { 'Content-Type': 'application/json', ...headers }, tags: ${JSON.stringify(step.tags || {})} };
-        const res = http['${step.method.toLowerCase()}'](url, resolvedBody ? JSON.stringify(resolvedBody) : undefined, params);
+        let url = replacePlaceholders(${JSON.stringify(step.url)}, extractedVars);
+        let body = ${step.body ? JSON.stringify(step.body) : "null"};
+        let resolvedBody = body ? replacePlaceholders(body, extractedVars) : null;
+        
+        // --- MODIFICATION START: Correctly re-assign headers after placeholder replacement ---
+        let headers = replacePlaceholders(${JSON.stringify(
+          step.headers || {}
+        )}, extractedVars);
+        // --- MODIFICATION END ---
+        
+        const isFormUrlEncoded = headers['Content-Type'] === 'application/x-www-form-urlencoded';
+
+        const finalBody = isFormUrlEncoded
+            ? resolvedBody
+            : (resolvedBody ? JSON.stringify(resolvedBody) : undefined);
+
+        const params = {
+            headers: {
+                ...(isFormUrlEncoded ? {} : { 'Content-Type': 'application/json' }),
+                ...headers
+            },
+            tags: ${JSON.stringify(step.tags || {})}
+        };
+
+        const res = http['${step.method.toLowerCase()}'](url, finalBody, params);
+
         const checksToRun = ${JSON.stringify(step.checks || [])};
         checksToRun.forEach(c => {
             let checkResult = false;
@@ -153,8 +173,17 @@ function generateScenarioFunction(
                     case 'jsonPathValue': checkResult = getJsonValue(res.json(), c.path) == c.expected; checkName = \`JSON '\${c.path}' is \${c.expected}\`; break;
                 }
             } catch (e) {}
-            check(res, { [checkName]: () => checkResult });
+            
+            const checkPassed = check(res, { [checkName]: () => checkResult });
+            if (!checkPassed) {
+                console.error('  [CHECK FAILED] in group: "${step.testName}"');
+                console.error(\`    - Check: \${checkName}\`);
+                console.error(\`    - URL: \${res.request.method} \${res.request.url}\`);
+                console.error(\`    - Actual Status: \${res.status}\`);
+                console.error(\`    - Actual Body: \${res.body ? res.body.substring(0, 500) : '[No Body]'}\`);
+            }
         });
+
         const extractRules = ${JSON.stringify(step.extract || [])};
         if (res.status >= 200 && res.status < 300) {
             try {
@@ -167,9 +196,10 @@ function generateScenarioFunction(
     `
     )
     .join("\n");
+
   return `
 export function ${sanitizedScenarioName}() {
-    extractedVars = {};
+    let extractedVars = {};
     ${stepFunctions}
 }`;
 }
@@ -181,7 +211,7 @@ export async function runTestsFromDataSource(
   htmlReportPath?: string,
   cloudToken?: string,
   useMockServer: boolean = false,
-  summaryCsvPath?: string // <-- Add new parameter
+  summaryCsvPath?: string
 ) {
   console.log(`${logPrefix} Starting...`);
   const testCases = await parseDataSourceFile(dataSourcePath);
@@ -193,7 +223,7 @@ export async function runTestsFromDataSource(
   const tempJsonForHtml = htmlReportPath
     ? path.join(process.cwd(), `_temp_report_${Date.now()}.json`)
     : undefined;
-  let summaryExportPath: string | undefined; // To store the path of the raw k6 output
+  let summaryExportPath: string | undefined;
 
   try {
     if (useMockServer) {
@@ -241,7 +271,7 @@ export async function runTestsFromDataSource(
     if (outputDir && !cloudToken) {
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const fileName = `summary-${timestamp}.${summaryFormat}`;
-      summaryExportPath = path.join(outputDir, fileName); // Capture the path
+      summaryExportPath = path.join(outputDir, fileName);
       command +=
         summaryFormat === "csv"
           ? ` --out csv=${summaryExportPath}`
@@ -286,7 +316,6 @@ export async function runTestsFromDataSource(
     }
   }
 
-  // --- NEW: Generate Powerful Summary CSV Report ---
   if (summaryCsvPath && summaryExportPath && summaryFormat === "csv") {
     try {
       await fs.access(summaryExportPath);
@@ -296,7 +325,9 @@ export async function runTestsFromDataSource(
       await generateSummaryCsv(summaryExportPath, summaryCsvPath);
     } catch (summaryError) {
       console.error(
-        `${logPrefix} ❌ Failed to generate powerful summary CSV report. Error: ${summaryError instanceof Error ? summaryError.message : summaryError}`
+        `${logPrefix} ❌ Failed to generate powerful summary CSV report. Error: ${
+          summaryError instanceof Error ? summaryError.message : summaryError
+        }`
       );
     }
   } else if (summaryCsvPath && summaryFormat !== "csv") {
