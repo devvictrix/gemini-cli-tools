@@ -22,6 +22,7 @@ export const INCLUDE_EXTENSIONS: Set<string> = new Set([
   ".bru",
   ".sql",
   ".prisma",
+  ".csv",
 ]);
 
 /**

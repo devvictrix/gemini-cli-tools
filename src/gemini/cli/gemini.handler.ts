@@ -41,7 +41,7 @@ const commandHandlerMap: {
   [EnhancementType.Develop]: developCmd.execute,
   [EnhancementType.GenerateProgressReport]: generateProgressReportCmd.execute,
   [EnhancementType.Init]: initCmd.execute,
-  [EnhancementType.RunK6]: runK6Cmd.execute, // <-- THIS LINE WAS MISSING
+  [EnhancementType.RunK6]: runK6Cmd.execute,
 };
 
 export async function runCommandLogic(argv: CliArguments): Promise<void> {

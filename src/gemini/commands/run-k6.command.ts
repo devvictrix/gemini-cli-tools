@@ -12,8 +12,16 @@ export async function execute(args: CliArguments): Promise<void> {
     throw new Error(`${logPrefix} Handler mismatch: Expected RunK6 command.`);
   }
 
-  // Capture all relevant arguments
-  const { targetPath, output, summaryFormat, htmlReport } = args;
+  // Destructure all relevant arguments, including the new 'summaryCsv'
+  const {
+    targetPath,
+    output,
+    summaryFormat,
+    htmlReport,
+    cloud,
+    mock,
+    summaryCsv,
+  } = args;
 
   if (!targetPath) {
     throw new Error(`${logPrefix} Target path (XLSX or CSV file) is required.`);
@@ -29,11 +37,14 @@ export async function execute(args: CliArguments): Promise<void> {
       ? summaryFormat
       : "json";
 
-  // Pass all arguments to the service layer.
+  // Pass all arguments, including the new 'summaryCsv', to the service layer.
   await runTestsFromDataSource(
     absolutePath,
     output as string | undefined,
     format,
-    htmlReport as string | undefined
+    htmlReport as string | undefined,
+    cloud as string | undefined,
+    mock as boolean | undefined,
+    summaryCsv as string | undefined // Pass the new argument
   );
 }

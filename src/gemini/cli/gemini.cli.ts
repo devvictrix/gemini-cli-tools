@@ -354,7 +354,8 @@ export async function runCli(processArgs: string[]): Promise<void> {
           .option("summaryFormat", {
             alias: "f",
             type: "string",
-            description: "Format for raw summary reports (json or csv).",
+            description:
+              "Format for raw reports (json or csv). 'csv' is required for --summaryCsv.",
             default: "json",
             choices: ["json", "csv"],
           })
@@ -364,6 +365,27 @@ export async function runCli(processArgs: string[]): Promise<void> {
             description:
               "Path to save a consolidated HTML report for the entire run.",
             demandOption: false,
+          })
+          .option("summaryCsv", {
+            alias: "S",
+            type: "string",
+            description:
+              "Path to save a powerful, human-readable summary CSV report. Requires --output and --summaryFormat csv.",
+            demandOption: false,
+          })
+          .option("cloud", {
+            alias: "c",
+            type: "string",
+            description:
+              "Run test on Grafana Cloud k6 using the provided API token.",
+            demandOption: false,
+          })
+          .option("mock", {
+            alias: "m",
+            type: "boolean",
+            description:
+              "Start a local mock server for testing the runner logic.",
+            default: false,
           });
       },
       (argv) =>
