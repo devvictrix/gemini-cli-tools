@@ -4,5 +4,5 @@ results/*
 
 # Ignore all data files except the example
 data/*
-!data/example-data.csv
+!data/happy-path-tests.csv
 !data/.gitkeep

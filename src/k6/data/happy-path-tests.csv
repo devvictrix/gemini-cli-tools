@@ -1,0 +1,4 @@
+scenario,testName,method,url,body,headers,checks,extract,executorOptions
+"SingleGetMock","Get Public Crocodile by ID",GET,"http://localhost:3333/public/crocodiles/1/","","","[{""type"":""statusCode"",""expected"":200},{""type"":""jsonPathValue"",""path"":""0.name"",""expected"":""Mock Bert""}]",,
+"HappyPathGet","Get All Public Crocodiles",GET,"http://localhost:3333/public/crocodiles/","","","[{""type"":""statusCode"",""expected"":200}]",,
+"RampingLoadTest","Ramp Test on Public Crocs",GET,"http://localhost:3333/public/crocodiles/",,,"[{""type"":""statusCode"",""expected"":200}]",,"{""executor"":""ramping-vus"",""startVUs"":1,""stages"":[{""duration"":""10s"",""target"":5},{""duration"":""5s"",""target"":0}]}"

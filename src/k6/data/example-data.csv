@@ -1,5 +1,0 @@
-scenario,testName,method,url,body,headers,checks,extract,executorOptions
-"Auth and Fetch Mock","Step 1: Login and Get Token",POST,"http://localhost:3333/auth/token/login/","{""username"":""devvi"",""password"":""secret""}","{""Content-Type"":""application/json""}","[{""type"":""statusCode"",""expected"":200}]","[{""variable"":""authToken"",""path"":""access""}]",
-"Auth and Fetch Mock","Step 2: Access Protected Resource",GET,"http://localhost:3333/my/crocodiles/","","{""Authorization"":""Bearer {{authToken}}""}","[{""type"":""statusCode"",""expected"":200},{""type"":""bodyContains"",""expected"":""Lyle (Protected)""}]",,
-"Single Get Mock","Get Public Crocodile by ID",GET,"http://localhost:3333/public/crocodiles/1/","","","[{""type"":""statusCode"",""expected"":200},{""type"":""jsonPathValue"",""path"":""0.name"",""expected"":""Mock Bert""}]",,
-"Ramping Load Test","Ramp Test on Public Crocs",GET,"http://localhost:3333/public/crocodiles/",,,"[{""type"":""statusCode"",""expected"":200}]",,"{""executor"":""ramping-vus"",""startVUs"":1,""stages"":[{""duration"":""10s"",""target"":5},{""duration"":""5s"",""target"":0}]}"
