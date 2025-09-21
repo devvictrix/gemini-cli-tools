@@ -30,6 +30,7 @@ function promisifiedExec(command: string): Promise<void> {
   });
 }
 
+// In: src/k6/services/k6.service.ts
 function generateTestFunction(test: TestCase): string {
   const sanitizedTestName = (test.testName || `test_${Date.now()}`).replace(
     /[^a-zA-Z0-9_]/g,
@@ -46,11 +47,13 @@ export function ${sanitizedTestName}() {
         const params = {
             headers: {
                 'Content-Type': 'application/json',
-                ...${JSON.stringify(test.headers || {})}
+                ...replacePlaceholders(${JSON.stringify(test.headers || {})}, extractedVars)
             },
         };
 
-        const res = http.${test.method.toLowerCase()}(url, JSON.stringify(resolvedBody), params);
+        // --- CORRECTED LINE ---
+        // Use bracket notation to handle reserved keywords like 'delete'
+        const res = http['${test.method.toLowerCase()}'](url, resolvedBody ? JSON.stringify(resolvedBody) : null, params);
 
         check(res, { 'status is 2xx': (r) => r.status >= 200 && r.status < 300 });
 
