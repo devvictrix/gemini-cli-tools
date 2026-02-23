@@ -23,6 +23,7 @@ export const INCLUDE_EXTENSIONS: Set<string> = new Set([
   ".sql",
   ".prisma",
   ".csv",
+  ".php",
 ]);
 
 /**
