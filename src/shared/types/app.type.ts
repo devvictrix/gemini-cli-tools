@@ -1,6 +1,6 @@
 // File: src/shared/types/app.type.ts
 
-import { EnhancementType } from '../../gemini/types/enhancement.type';
+import { ENHANCEMENT_TYPES } from '../../gemini/types/enhancement.type';
 
 /**
  * Represents the unified command-line arguments passed to the application,
@@ -14,7 +14,7 @@ export interface CliArguments {
      * Determines which part of the application logic will be executed.
      * This essentially acts as a command selector.
      */
-    command: EnhancementType;
+    command: ENHANCEMENT_TYPES;
 
     /**
      * The target file or directory path.
@@ -32,7 +32,10 @@ export interface CliArguments {
      * Optional filename pattern filter (e.g., "*aaa", "aaa*", "*aaa*").
      * Used by the Consolidate command. Takes precedence over --prefix.
      */
-    pattern?: string; // <<< ADDED/ENSURE THIS EXISTS
+    pattern?: string;
+    withPathComments?: boolean;
+    stripComments?: boolean; // New flag for stripped-down consolidations
+    minify?: boolean; // New flag for extreme LLM-density consolidations
 
     /**
      * Optional name for the generated interface.

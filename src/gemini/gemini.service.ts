@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosResponse } from 'axios';
 // --- Import the validated 'env' object ---
 import { env } from '../config/app.config';
 // Corrected path assuming enhancement.type.ts is now in gemini/types
-import { EnhancementType } from '@/gemini/types/enhancement.type';
+import { ENHANCEMENT_TYPES } from '@/gemini/types/enhancement.type';
 import { extractCodeBlock } from '@/gemini/utils/code.extractor';
 
 // --- Use the validated env object for logging ---
@@ -34,22 +34,30 @@ interface GeminiEnhancementOptions {
      * This helps the API generate more accurate and relevant responses.
      */
     frameworkHint?: string;
+    /**
+     * The perspective or goal of the code review. Used with ENHANCEMENT_TYPES.REVIEW.
+     */
+    reviewMode?: string;
+    /**
+     * The level of detail for documentation. Used with ENHANCEMENT_TYPES.DOCUMENT.
+     */
+    docLevel?: string;
 }
 
 /**
  * Generates a prompt for the Gemini API based on the requested enhancement type and the provided code.
  * The prompt is carefully crafted to guide the API towards producing the desired output.
- * NOTE: This function should NOT be called for EnhancementType.Develop as the prompt is generated externally.
+ * NOTE: This function should NOT be called for ENHANCEMENT_TYPES.DEVELOP as the prompt is generated externally.
  *
- * @param {EnhancementType} enhancement - The type of enhancement requested (e.g., AddComments, Analyze, Explain).
+ * @param {ENHANCEMENT_TYPES} enhancement - The type of enhancement requested (e.g., AddComments, Analyze, Explain).
  * @param {string} code - The code to be enhanced or analyzed by the Gemini API.
  * @param {GeminiEnhancementOptions} [options] - Optional parameters like framework hint.
  * @returns {string} The generated prompt string that will be sent to the Gemini API.
  * @throws {Error} If no prompt is defined for an API-dependent enhancement type (excluding Develop).
  */
-function generatePrompt(enhancement: EnhancementType, code: string, options?: GeminiEnhancementOptions): string {
+function generatePrompt(enhancement: ENHANCEMENT_TYPES, code: string, options?: GeminiEnhancementOptions): string {
     // Throw error immediately if called for Develop type.
-    if (enhancement === EnhancementType.Develop) {
+    if (enhancement === ENHANCEMENT_TYPES.DEVELOP) {
         throw new Error(`Internal Error: generatePrompt should not be called directly for Develop type.`);
     }
 
@@ -65,107 +73,66 @@ function generatePrompt(enhancement: EnhancementType, code: string, options?: Ge
 
     switch (enhancement) {
         // --- Cases remain the same ---
-        case EnhancementType.AddComments:
-            return `
-Review the following TypeScript/JavaScript code. Add comprehensive TSDoc/JSDoc comments to all functions, classes, methods, and exported variables. Add clarifying inline comments for complex logic blocks where necessary. Ensure comments explain the 'why' not just the 'what'. Respond ONLY with the fully commented code block, enclosed in \`\`\`typescript ... \`\`\`. Do not include any explanatory text before or after the code block.
+        case ENHANCEMENT_TYPES.REVIEW:
+            let reviewFocus = '';
+            if (options?.reviewMode === 'architecture') {
+                reviewFocus = `Focus on:
+1.  **Architectural Style:** Identify the dominant architectural style(s) if possible. Explain the reasoning.
+2.  **Key Modules/Components:** List the major directories/components and describe their roles.
+3.  **Core Interactions:** Describe how data flows through the system.
+4.  **Strengths & Weaknesses:** Briefly note design strengths or bottlenecks.
+Output in Markdown format suitable for an architecture review document.`;
+            } else if (options?.reviewMode === 'explain') {
+                reviewFocus = `Focus on explaining this code in simple terms for a developer new to the project. Describe its primary purpose, inputs, outputs, and main steps.`;
+            } else {
+                reviewFocus = `Focus on:
+1.  **Code Quality:** Identify code smells or SOLID violations.
+2.  **Structure:** Briefly describe structural components.
+3.  **Potential Improvements:** Suggest actionable, high-impact improvements for readability, maintainability, or performance. Provide explanations.`;
+            }
 
+            return `
+Analyze the following code snippet or consolidated codebase. ${reviewFocus}
+            
 Code:
 \`\`\`typescript
 ${code}
 \`\`\`
 `;
-        case EnhancementType.Analyze:
-            return `
-Analyze the following code snippet or consolidated codebase. Focus on:
-1.  **Code Quality:** Identify potential issues like code smells, overly complex functions, or areas violating SOLID principles.
-2.  **Structure:** Briefly describe the apparent structure (e.g., functions, classes, modules involved).
-3.  **Potential Improvements:** Suggest 1-2 specific, high-impact improvements related to readability, maintainability, or performance if applicable.
-Provide the analysis as concise bullet points or short paragraphs.
-
-Code:
-\`\`\`typescript
-${code}
-\`\`\`
-`;
-        case EnhancementType.Explain:
-            return `
-Explain the following TypeScript/JavaScript code in simple terms. Describe its primary purpose, inputs, outputs, and the main steps it performs. Target the explanation towards a developer who is new to this specific code.
-
-Code:
-\`\`\`typescript
-${code}
-\`\`\`
-`;
-        case EnhancementType.SuggestImprovements:
-            return `
-Act as a senior software engineer reviewing the following code. Provide specific, actionable suggestions for improvement. Focus on areas like:
-- Readability and Clarity
-- Maintainability and Modularity
-- Potential Bugs or Edge Cases
-- Performance Optimizations (if obvious)
-- Adherence to Best Practices (e.g., SOLID, DRY)
-Format suggestions clearly, perhaps as a list with explanations.
-
-Code:
-\`\`\`typescript
-${code}
-\`\`\`
-`;
-        case EnhancementType.GenerateDocs: // For root project README
-            return `
-Analyze the following consolidated codebase, likely representing a significant part or the whole of a project. Generate a comprehensive README.md content in Markdown format. The README should include:
-1.  **Project Title/Name:** (Infer if possible, otherwise use a placeholder)
-2.  **Description:** A brief overview of the project's purpose.
-3.  **Key Features:** (If discernible from the code)
-4.  **Module Overview:** Briefly describe the main directories/modules and their roles.
-5.  **Getting Started/Usage:** (Provide placeholder sections if details aren't in the code)
-6.  **Technical Stack:** (Mention languages, key libraries/frameworks if identifiable)
-Structure the output clearly using Markdown headings and formatting.
-
-Codebase:
-\`\`\`typescript
-${code}
-\`\`\`
-`;
-        case EnhancementType.AnalyzeArchitecture:
-            return `
-Analyze the overall software architecture of the following consolidated codebase, representing a project or a major subsystem. Provide the analysis in Markdown format, suitable for inclusion in a 'AI_Architecture_Analyzed.md' file. Focus on:
-
-1.  **Architectural Style:** Identify the dominant architectural style(s) if possible (e.g., Layered, MVC/MVP/MVVM, Microservices-like, Monolith, Event-Driven, etc.). Explain the reasoning.
-2.  **Key Modules/Components:** List the major directories/components identified in the code and briefly describe their primary responsibilities and roles within the architecture.
-3.  **Core Interactions & Data Flow:** Describe the main ways these components interact (e.g., function calls, events, message queues, API calls). How does data typically flow through the system?
-4.  **Cross-Cutting Concerns:** Mention how aspects like configuration, error handling, logging, or authentication seem to be handled (if patterns are visible).
-5.  **Potential Strengths & Weaknesses:** Briefly note any apparent architectural strengths (e.g., modularity, testability) or potential weaknesses/areas for concern (e.g., high coupling, god objects, potential bottlenecks) based *only* on the provided code structure.
-6.  **Technology Choices:** Briefly mention key frameworks or libraries observed that significantly influence the architecture.
-
-Aim for a high-level overview. Do not describe individual functions or minor implementation details unless they are critical to understanding a core architectural concept.
-
-Consolidated Codebase:
-\`\`\`typescript
-${code}
-\`\`\`
-`;
-        case EnhancementType.GenerateModuleReadme:
-            return `
+        case ENHANCEMENT_TYPES.DOCUMENT:
+            if (options?.docLevel === 'module') {
+                 return `
 The following consolidated code represents the contents of a specific software module (${moduleName}) within a larger project. Analyze this code and generate a concise, well-structured README.md file content in Markdown format specifically for this module.
 
 The README should focus *only* on the provided code and include:
-
-1.  **Module Name:** (Infer a suitable name, e.g., based on the directory or primary class/function, or use the placeholder '${moduleName}')
-2.  **Purpose/Responsibility:** Clearly state the primary goal and responsibility of this module within the larger application context. What problem does it solve?
-3.  **Key Components/Features:** List the main classes, functions, or sub-components defined within this module and briefly describe what they do.
-4.  **Public API/Usage:** Describe how other parts of the application are expected to interact with this module. Highlight the main entry points, exported functions, or classes. Provide brief usage examples if possible based on the code (e.g., how to instantiate a key class or call a primary function).
-5.  **Dependencies:** Mention any significant external libraries or other internal modules this module appears to depend on heavily (if clearly identifiable from imports or usage).
-6.  **Configuration:** If the module requires specific configuration (e.g., environment variables, setup steps), mention it here (or state if none seems required).
-
-Structure the output clearly using Markdown headings (e.g., \`## Purpose\`, \`## Usage\`). Be concise and focus on information essential for another developer to understand and use this specific module. Do not invent features not present in the code.
+1.  **Module Name** 
+2.  **Purpose/Responsibility:** Clearly state the primary goal.
+3.  **Key Components/Features**
+4.  **Public API/Usage**
+5.  **Dependencies**
 
 Module Code:
 \`\`\`typescript
 ${code}
 \`\`\`
 `;
-        case EnhancementType.GenerateTests:
+            } else {
+                 return `
+Analyze the following consolidated codebase. Generate a comprehensive README.md content in Markdown format. The README should include:
+1.  **Project Title/Name:** (Infer if possible)
+2.  **Description:** A brief overview.
+3.  **Key Features:** (If discernible)
+4.  **Module Overview:** Briefly describe the main directories/modules.
+5.  **Technical Stack:** (Mention languages, key libraries if identifiable)
+
+Codebase:
+\`\`\`typescript
+${code}
+\`\`\`
+`;
+            }
+
+        case ENHANCEMENT_TYPES.GENERATE_TESTS:
             return `
 Analyze the following TypeScript code, which represents a component, function, or module. Generate comprehensive unit tests for it using the '${framework}' testing framework syntax.
 
@@ -202,7 +169,7 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
     console.log(`[GeminiService] Sending request to Gemini API (${promptText.length} chars)...`);
 
     // --- Construct Endpoint Dynamically ---
-    const apiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL_NAME}:generateContent`;
+    const apiEndpoint = `https://generativelanguage.googleapis.com/${env.GEMINI_API_VERSION}/models/${env.GEMINI_MODEL_NAME}:generateContent`;
     // --- Use API Key from env ---
     const apiKey = env.GEMINI_API_KEY;
 
@@ -277,30 +244,25 @@ async function callGeminiApi(promptText: string): Promise<string | null> {
 /**
  * Orchestrates the process of enhancing code or generating text using the Gemini API.
  * For most enhancement types, it generates a prompt based on the code.
- * For EnhancementType.Develop, it expects the full prompt to be provided.
+ * For ENHANCEMENT_TYPES.DEVELOP, it expects the full prompt to be provided.
  *
- * @param {EnhancementType} enhancementType - The type of enhancement to perform.
+ * @param {ENHANCEMENT_TYPES} enhancementType - The type of enhancement to perform.
  * @param {string} promptOrCode - For most types, this is the code to enhance/analyze. For Develop, this is the full prompt.
  * @param {GeminiEnhancementOptions} [options] - Optional parameters to customize the enhancement process (e.g., framework hint).
  * @returns {Promise<GeminiEnhancementResult>} The result of the enhancement operation, including the content and its type.
  */
 export async function enhanceCodeWithGemini(
-    enhancementType: EnhancementType,
+    enhancementType: ENHANCEMENT_TYPES,
     promptOrCode: string,
     options?: GeminiEnhancementOptions
 ): Promise<GeminiEnhancementResult> {
 
     // Define which enhancement types require a call to the Gemini API.
     const usesApi = [
-        EnhancementType.AddComments,
-        EnhancementType.Analyze,
-        EnhancementType.Explain,
-        EnhancementType.SuggestImprovements,
-        EnhancementType.GenerateDocs,
-        EnhancementType.AnalyzeArchitecture,
-        EnhancementType.GenerateModuleReadme,
-        EnhancementType.GenerateTests,
-        EnhancementType.Develop, // Added Develop
+        ENHANCEMENT_TYPES.REVIEW,
+        ENHANCEMENT_TYPES.DOCUMENT,
+        ENHANCEMENT_TYPES.GENERATE_TESTS,
+        ENHANCEMENT_TYPES.DEVELOP, // Added Develop
     ].includes(enhancementType);
 
     // If the enhancement type does not require an API call, log a warning and return an error result.
@@ -311,7 +273,7 @@ export async function enhanceCodeWithGemini(
 
     // Determine the actual prompt to send to the API
     let finalPrompt: string;
-    if (enhancementType === EnhancementType.Develop) {
+    if (enhancementType === ENHANCEMENT_TYPES.DEVELOP) {
         // For Develop, the input *is* the fully formed prompt
         finalPrompt = promptOrCode;
     } else {

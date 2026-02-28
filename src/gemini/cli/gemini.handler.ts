@@ -1,47 +1,28 @@
 // File: src/gemini/cli/gemini.handler.ts
 
 import { CliArguments } from "@shared/types/app.type";
-import { EnhancementType } from "@/gemini/types/enhancement.type";
+import { ENHANCEMENT_TYPES } from "@/gemini/types/enhancement.type";
 
-// --- Import Command Handlers ---
-import * as addCommentsCmd from "@/gemini/commands/add-comments.command";
-import * as addPathCommentCmd from "@/gemini/commands/add-path-comment.command";
-import * as analyzeCmd from "@/gemini/commands/analyze.command";
 import * as consolidateCmd from "@/gemini/commands/consolidate.command";
-import * as explainCmd from "@/gemini/commands/explain.command";
-import * as generateDocsCmd from "@/gemini/commands/generate-docs.command";
-import * as generateStructureDocCmd from "@/gemini/commands/generate-structure-doc.command";
-import * as inferFromDataCmd from "@/gemini/commands/infer-from-data.command";
-import * as suggestImprovementsCmd from "@/gemini/commands/suggest-improvements.command";
-import * as analyzeArchitectureCmd from "@/gemini/commands/analyze-architecture.command";
-import * as generateModuleReadmeCmd from "@/gemini/commands/generate-module-readme.command";
 import * as generateTestsCmd from "@/gemini/commands/generate-tests.command";
 import * as developCmd from "@/gemini/commands/develop.command";
 import * as generateProgressReportCmd from "@/gemini/commands/generate-progress-report.command";
 import * as initCmd from "@/gemini/commands/init.command";
-import * as runK6Cmd from "@/gemini/commands/run-k6.command";
+import * as reviewCmd from "@/gemini/commands/review.command";
+import * as documentCmd from "@/gemini/commands/document.command";
 
 const logPrefix = "[GeminiHandler]";
 
 const commandHandlerMap: {
-  [key in EnhancementType]: (args: CliArguments) => Promise<void>;
+  [key in ENHANCEMENT_TYPES]: (args: CliArguments) => Promise<void>;
 } = {
-  [EnhancementType.AddComments]: addCommentsCmd.execute,
-  [EnhancementType.AddPathComment]: addPathCommentCmd.execute,
-  [EnhancementType.Analyze]: analyzeCmd.execute,
-  [EnhancementType.Consolidate]: consolidateCmd.execute,
-  [EnhancementType.Explain]: explainCmd.execute,
-  [EnhancementType.GenerateDocs]: generateDocsCmd.execute,
-  [EnhancementType.GenerateStructureDoc]: generateStructureDocCmd.execute,
-  [EnhancementType.InferFromData]: inferFromDataCmd.execute,
-  [EnhancementType.SuggestImprovements]: suggestImprovementsCmd.execute,
-  [EnhancementType.AnalyzeArchitecture]: analyzeArchitectureCmd.execute,
-  [EnhancementType.GenerateModuleReadme]: generateModuleReadmeCmd.execute,
-  [EnhancementType.GenerateTests]: generateTestsCmd.execute,
-  [EnhancementType.Develop]: developCmd.execute,
-  [EnhancementType.GenerateProgressReport]: generateProgressReportCmd.execute,
-  [EnhancementType.Init]: initCmd.execute,
-  [EnhancementType.RunK6]: runK6Cmd.execute,
+  [ENHANCEMENT_TYPES.REVIEW]: reviewCmd.execute,
+  [ENHANCEMENT_TYPES.DOCUMENT]: documentCmd.execute,
+  [ENHANCEMENT_TYPES.CONSOLIDATE]: consolidateCmd.execute,
+  [ENHANCEMENT_TYPES.GENERATE_TESTS]: generateTestsCmd.execute,
+  [ENHANCEMENT_TYPES.DEVELOP]: developCmd.execute,
+  [ENHANCEMENT_TYPES.GENERATE_PROGRESS_REPORT]: generateProgressReportCmd.execute,
+  [ENHANCEMENT_TYPES.INIT]: initCmd.execute,
 };
 
 export async function runCommandLogic(argv: CliArguments): Promise<void> {

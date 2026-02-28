@@ -5,7 +5,7 @@ import path from 'path';
 import { CliArguments } from '@shared/types/app.type';
 import { readSingleFile, writeOutputFile } from '@shared/utils/file-io.utils';
 import { parseChecklistTable, extractCurrentPhase, ChecklistItem } from '@shared/utils/markdown.utils';
-import { EnhancementType } from '@/gemini/types/enhancement.type';
+import { ENHANCEMENT_TYPES } from '@/gemini/types/enhancement.type';
 
 const logPrefix = "[GenerateProgressReport]";
 const REQUIREMENT_FILENAME = 'REQUIREMENT.md';
@@ -34,7 +34,7 @@ function formatDate(date: Date): string {
  * @throws Error on file access/parsing issues.
  */
 export async function execute(args: CliArguments): Promise<void> {
-    if (args.command !== EnhancementType.GenerateProgressReport) {
+    if (args.command !== ENHANCEMENT_TYPES.GENERATE_PROGRESS_REPORT) {
         throw new Error("Handler mismatch: Expected GenerateProgressReport command.");
     }
 

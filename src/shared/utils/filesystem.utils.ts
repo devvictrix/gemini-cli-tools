@@ -100,7 +100,9 @@ export async function getTargetFiles(rootDir: string, filePrefix: string = ""): 
 export async function getConsolidatedSources(
     rootDir: string,
     filePrefix?: string, // Keep for other commands
-    pattern?: string     // Add pattern
+    pattern?: string,     // Add pattern
+    stripComments: boolean = false,
+    minify: boolean = false
 ): Promise<string> {
     // Determine which filter is active and log appropriately
     let activeFilterLog = '';
@@ -129,10 +131,7 @@ export async function getConsolidatedSources(
 
     const header = `// Consolidated sources from: ${absRoot}\n` +
         `// Consolidation timestamp: ${now}\n` +
-        `// Tool Name: gemini-poc (inspector module)\n` +
-        `// Root Directory: ${absRoot}\n` +
-        `// Include Extensions: ${[...INCLUDE_EXTENSIONS].sort().join(", ")}\n` +
-        `// Exclude Patterns/Files: ${[...EXCLUDE_PATTERNS, ...EXCLUDE_FILENAMES, ...EXCLUDE_FILENAME_WILDCARDS].sort().join(", ")}\n\n`;
+        `// Tool Name: gemini-cli-tools\n\n`;
 
     let outputContent = header;
     const allFiles = await getAllFiles(absRoot, EXCLUDE_PATTERNS, EXCLUDE_FILENAMES, EXCLUDE_FILENAME_WILDCARDS);
@@ -171,13 +170,24 @@ export async function getConsolidatedSources(
         let lines: string[];
         try {
             fileData = await fs.readFile(canonicalPath, "utf-8");
+            
+            // Try to compress JSON to save tokens immediately
+            if (fileName.endsWith('.json')) {
+                try {
+                    const parsed = JSON.parse(fileData);
+                    fileData = JSON.stringify(parsed); // Minified JSON
+                } catch (e) {
+                    // Muted failure, keep original if not valid JSON
+                }
+            }
+            
             lines = fileData.split(/\r?\n/);
         } catch (error) {
             console.warn(`  ${logPrefix} Warning: Error reading ${friendlyPath}. Skipping. Error: ${error instanceof Error ? error.message : error}`);
             continue;
         }
 
-        const filtered = filterLines(lines, friendlyPath);
+        const filtered = filterLines(lines, friendlyPath, stripComments, minify);
 
         if (filtered.length > 0 || fileData.trim() !== '') {
             outputContent += `${commentLine}\n\n`;

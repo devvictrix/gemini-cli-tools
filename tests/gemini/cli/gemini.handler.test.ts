@@ -1,7 +1,7 @@
 import { describe, it, expect, jest } from '@jest/globals';
 import { runCommandLogic } from '../src/gemini/cli/gemini.handler';
 import { CliArguments } from '../src/shared/types/app.type';
-import { EnhancementType } from '../src/gemini/types/enhancement.type';
+import { ENHANCEMENT_TYPES } from '../src/gemini/types/enhancement.type';
 
 // Mock command modules
 jest.mock('../src/gemini/commands/add-comments.command', () => ({ execute: jest.fn() }));
@@ -51,7 +51,7 @@ describe('runCommandLogic', () => {
   });
 
   it('should execute the correct command handler', async () => {
-    const argv: CliArguments = { command: EnhancementType.AddComments, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ADD_COMMENTS, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(addCommentsCmd.execute).toHaveBeenCalledWith(argv);
   });
@@ -60,7 +60,7 @@ describe('runCommandLogic', () => {
     const errorMessage = 'Simulated error';
     (addCommentsCmd.execute as jest.Mock).mockRejectedValue(new Error(errorMessage));
 
-    const argv: CliArguments = { command: EnhancementType.AddComments, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ADD_COMMENTS, targetPath: 'test' };
     await expect(runCommandLogic(argv)).rejects.toThrowError('process.exit() was called.');
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error during execution of command"));
@@ -73,7 +73,7 @@ describe('runCommandLogic', () => {
     const error = new Error(errorMessage);
     (addCommentsCmd.execute as jest.Mock).mockRejectedValue(error);
 
-    const argv: CliArguments = { command: EnhancementType.AddComments, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ADD_COMMENTS, targetPath: 'test' };
 
     await expect(runCommandLogic(argv)).rejects.toThrowError('process.exit() was called.');
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error during execution of command"));
@@ -87,7 +87,7 @@ describe('runCommandLogic', () => {
     const error = new Error(errorMessage);
     (addCommentsCmd.execute as jest.Mock).mockRejectedValue(error);
 
-    const argv: CliArguments = { command: EnhancementType.AddComments, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ADD_COMMENTS, targetPath: 'test' };
 
      await expect(runCommandLogic(argv)).rejects.toThrowError('process.exit() was called.');
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error during execution of command"));
@@ -101,7 +101,7 @@ describe('runCommandLogic', () => {
     const error = new Error(errorMessage);
     (addCommentsCmd.execute as jest.Mock).mockRejectedValue(error);
 
-    const argv: CliArguments = { command: EnhancementType.AddComments, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ADD_COMMENTS, targetPath: 'test' };
 
      await expect(runCommandLogic(argv)).rejects.toThrowError('process.exit() was called.');
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error during execution of command"));
@@ -115,7 +115,7 @@ describe('runCommandLogic', () => {
     const error = new Error(errorMessage);
     (addCommentsCmd.execute as jest.Mock).mockRejectedValue(error);
 
-    const argv: CliArguments = { command: EnhancementType.AddComments, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ADD_COMMENTS, targetPath: 'test' };
 
     await expect(runCommandLogic(argv)).rejects.toThrowError('process.exit() was called.');
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error during execution of command"));
@@ -129,7 +129,7 @@ describe('runCommandLogic', () => {
     const error = new Error(errorMessage);
     (addCommentsCmd.execute as jest.Mock).mockRejectedValue(error);
 
-    const argv: CliArguments = { command: EnhancementType.AddComments, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ADD_COMMENTS, targetPath: 'test' };
 
     await expect(runCommandLogic(argv)).rejects.toThrowError('process.exit() was called.');
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error during execution of command"));
@@ -142,7 +142,7 @@ describe('runCommandLogic', () => {
     const errorMessage = 'Simulated non-Error object';
     (addCommentsCmd.execute as jest.Mock).mockRejectedValue(errorMessage);
 
-    const argv: CliArguments = { command: EnhancementType.AddComments, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ADD_COMMENTS, targetPath: 'test' };
     await expect(runCommandLogic(argv)).rejects.toThrowError('process.exit() was called.');
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error during execution of command"));
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Unknown error object"));
@@ -150,7 +150,7 @@ describe('runCommandLogic', () => {
   });
 
   it('should handle missing command handler', async () => {
-    const argv: CliArguments = { command: 'unknownCommand' as EnhancementType, targetPath: 'test' };
+    const argv: CliArguments = { command: 'unknownCommand' as ENHANCEMENT_TYPES, targetPath: 'test' };
 
     await expect(runCommandLogic(argv)).rejects.toThrowError('process.exit() was called.');
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Internal Error: No handler found for command: unknownCommand"));
@@ -159,73 +159,73 @@ describe('runCommandLogic', () => {
 
   it('should log a success message after command execution', async () => {
     (addCommentsCmd.execute as jest.Mock).mockResolvedValue(undefined);
-    const argv: CliArguments = { command: EnhancementType.AddComments, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ADD_COMMENTS, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining("Command 'AddComments' finished."));
   });
 
   it('should execute addPathCommentCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.AddPathComment, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ADD_PATH_COMMENT, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(addPathCommentCmd.execute).toHaveBeenCalledWith(argv);
   });
 
   it('should execute analyzeCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.Analyze, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ANALYZE, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(analyzeCmd.execute).toHaveBeenCalledWith(argv);
   });
 
   it('should execute consolidateCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.Consolidate, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.CONSOLIDATE, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(consolidateCmd.execute).toHaveBeenCalledWith(argv);
   });
 
   it('should execute explainCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.Explain, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.EXPLAIN, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(explainCmd.execute).toHaveBeenCalledWith(argv);
   });
 
   it('should execute generateDocsCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.GenerateDocs, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.GENERATE_DOCS, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(generateDocsCmd.execute).toHaveBeenCalledWith(argv);
   });
 
   it('should execute generateStructureDocCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.GenerateStructureDoc, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.GENERATE_STRUCTURE_DOC, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(generateStructureDocCmd.execute).toHaveBeenCalledWith(argv);
   });
 
   it('should execute inferFromDataCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.InferFromData, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.INFER_FROM_DATA, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(inferFromDataCmd.execute).toHaveBeenCalledWith(argv);
   });
 
   it('should execute suggestImprovementsCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.SuggestImprovements, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.SUGGEST_IMPROVEMENTS, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(suggestImprovementsCmd.execute).toHaveBeenCalledWith(argv);
   });
 
     it('should execute analyzeArchitectureCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.AnalyzeArchitecture, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.ANALYZE_ARCHITECTURE, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(analyzeArchitectureCmd.execute).toHaveBeenCalledWith(argv);
   });
 
   it('should execute generateModuleReadmeCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.GenerateModuleReadme, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.GENERATE_MODULE_README, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(generateModuleReadmeCmd.execute).toHaveBeenCalledWith(argv);
   });
 
     it('should execute generateTestsCmd command', async () => {
-    const argv: CliArguments = { command: EnhancementType.GenerateTests, targetPath: 'test' };
+    const argv: CliArguments = { command: ENHANCEMENT_TYPES.GENERATE_TESTS, targetPath: 'test' };
     await runCommandLogic(argv);
     expect(generateTestsCmd.execute).toHaveBeenCalledWith(argv);
   });

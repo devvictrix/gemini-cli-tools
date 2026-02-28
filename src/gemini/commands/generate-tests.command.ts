@@ -4,7 +4,7 @@ import { CliArguments, FileProcessingResult } from '@shared/types/app.type';
 import { getTargetFiles } from '@shared/utils/filesystem.utils';
 import { readSingleFile, writeOutputFile } from '@shared/utils/file-io.utils';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '@/gemini/gemini.service';
-import { EnhancementType } from '@/gemini/types/enhancement.type';
+import { ENHANCEMENT_TYPES } from '@/gemini/types/enhancement.type';
 import { extractCodeBlock } from '@/gemini/utils/code.extractor';
 
 const logPrefix = "[GenerateTests]";
@@ -74,7 +74,7 @@ function deriveMirroredTestFilePath(sourcePath: string, projectRoot: string = pr
  */
 export async function execute(args: CliArguments): Promise<void> {
     // Validate the command to ensure it's the expected one
-    if (args.command !== EnhancementType.GenerateTests) {
+    if (args.command !== ENHANCEMENT_TYPES.GENERATE_TESTS) {
         throw new Error("Handler mismatch: Expected GenerateTests command.");
     }
 
@@ -153,7 +153,7 @@ export async function execute(args: CliArguments): Promise<void> {
 
             // 3. Invoke Gemini Service
             const result: GeminiEnhancementResult = await enhanceCodeWithGemini(
-                EnhancementType.GenerateTests,
+                ENHANCEMENT_TYPES.GENERATE_TESTS,
                 codeToProcess,
                 { frameworkHint }
             );

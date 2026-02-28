@@ -17,6 +17,40 @@ const envSchema = z.object({
      * Defaults to 'gemini-1.5-flash-latest' if the `GEMINI_MODEL_NAME` environment variable is not set.
      */
     GEMINI_MODEL_NAME: z.string().default('gemini-1.5-flash-latest'),
+
+    /**
+     * The API version to use for the Gemini API.
+     * Defaults to 'v1beta'. Options usually include 'v1', 'v1beta', 'v1alpha'.
+     */
+    GEMINI_API_VERSION: z.string().default('v1beta'),
+
+    /**
+     * Set of file extensions to include during inspection.
+     */
+    INCLUDE_EXTENSIONS: z.string()
+        .default(".ts,.js,.json,.env,.yml,.yaml,.md,.tsx,.py,.sh,.html,.css,.go,.bru,.sql,.prisma,.csv,.php")
+        .transform((str) => new Set(str.split(',').map(s => s.trim()).filter(Boolean))),
+
+    /**
+     * Set of directory or file name patterns to exclude during inspection.
+     */
+    EXCLUDE_PATTERNS: z.string()
+        .default("node_modules,dist,build,.git,coverage,.nuxt,.output,.vscode,public,storage,src/storage,logs,__pycache__,.mypy_cache,.venv,.expo,.next,kiosk-ui,sound-api,queue-ui")
+        .transform((str) => new Set(str.split(',').map(s => s.trim()).filter(Boolean))),
+
+    /**
+     * Set of specific filenames to exclude during inspection.
+     */
+    EXCLUDE_FILENAMES: z.string()
+        .default("package-lock.json,consolidated_sources.ts,consolidated_output.txt,code.extractor.ts,README.md,docs.md")
+        .transform((str) => new Set(str.split(',').map(s => s.trim()).filter(Boolean))),
+
+    /**
+     * Set of wildcard filename patterns to exclude during inspection.
+     */
+    EXCLUDE_FILENAME_WILDCARDS: z.string()
+        .default("*.spec.ts,*.spec.tsx,*.test.ts,*.test.tsx,*mock*,*mocks*")
+        .transform((str) => new Set(str.split(',').map(s => s.trim()).filter(Boolean))),
 });
 
 // --- Load and Validate Environment ---

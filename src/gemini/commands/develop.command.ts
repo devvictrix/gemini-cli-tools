@@ -7,7 +7,7 @@ import { CliArguments } from '@shared/types/app.type';
 import { readSingleFile, writeOutputFile } from '@shared/utils/file-io.utils';
 import { parseRoadmapTable, RoadmapItem } from '@/shared/utils/feature-roadmap.utils';
 import { enhanceCodeWithGemini, GeminiEnhancementResult } from '@/gemini/gemini.service';
-import { EnhancementType } from '@/gemini/types/enhancement.type';
+import { ENHANCEMENT_TYPES } from '@/gemini/types/enhancement.type';
 import { parseAiResponseWithFileHeaders, ExtractedFile } from '@/shared/utils/multi-file.parser'; // New import
 
 const logPrefix = "[DevelopCmd]"; // Changed prefix for clarity
@@ -294,7 +294,7 @@ async function processAndWriteFiles(
 
 
 export async function execute(args: CliArguments): Promise<void> {
-    if (args.command !== EnhancementType.Develop) {
+    if (args.command !== ENHANCEMENT_TYPES.DEVELOP) {
         throw new Error(`${logPrefix} Handler mismatch: Expected Develop command.`);
     }
 
@@ -354,7 +354,7 @@ export async function execute(args: CliArguments): Promise<void> {
 
     const testGenPrompt = generateTestGenerationPrompt(currentTask, responsibleFileContext, existingTestFileContext);
     console.log(`${logPrefix} Invoking Gemini for test generation...`);
-    const testGenResult: GeminiEnhancementResult = await enhanceCodeWithGemini(EnhancementType.Develop, testGenPrompt); // Develop type uses full prompt
+    const testGenResult: GeminiEnhancementResult = await enhanceCodeWithGemini(ENHANCEMENT_TYPES.DEVELOP, testGenPrompt); // Develop type uses full prompt
 
     if (testGenResult.type === 'error' || testGenResult.content === null) {
         throw new Error(`${logPrefix} Gemini service failed during test generation for task "${currentTask.feature}": ${testGenResult.content ?? 'No content returned'}`);
@@ -389,7 +389,7 @@ export async function execute(args: CliArguments): Promise<void> {
     // Context for code gen: feature desc, *actual content of generated tests*, existing responsible file content
     const codeGenPrompt = generateCodeImplementationPrompt(currentTask, actualTestFileContext, responsibleFileContext);
     console.log(`${logPrefix} Invoking Gemini for code implementation...`);
-    const codeGenResult: GeminiEnhancementResult = await enhanceCodeWithGemini(EnhancementType.Develop, codeGenPrompt);
+    const codeGenResult: GeminiEnhancementResult = await enhanceCodeWithGemini(ENHANCEMENT_TYPES.DEVELOP, codeGenPrompt);
 
     if (codeGenResult.type === 'error' || codeGenResult.content === null) {
         throw new Error(`${logPrefix} Gemini service failed during code implementation for task "${currentTask.feature}": ${codeGenResult.content ?? 'No content returned'}`);

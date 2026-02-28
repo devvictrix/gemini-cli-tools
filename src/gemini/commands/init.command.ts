@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { CliArguments } from '@shared/types/app.type';
-import { EnhancementType } from '@/gemini/types/enhancement.type';
+import { ENHANCEMENT_TYPES } from '@/gemini/types/enhancement.type';
 import { writeOutputFile } from '@shared/utils/file-io.utils';
 
 const logPrefix = "[InitCommand]";
@@ -303,6 +303,47 @@ jest.tmp/
 }
 
 /**
+ * Generates the content for the GEMINI.md file (Agentic Interaction Protocol).
+ * @returns The string content for GEMINI.md.
+ */
+function getGeminiMdContent(): string {
+    return `# 🤖 Agentic Interaction Protocol (Anti-Over-Engineering)
+
+This protocol governs the behavior of AI agents operating within this repository to prevent unnecessary complexity and ensure alignment with business goals.
+
+### 1. The "Why" Before "Code" Rule
+* **Protocol:** Before writing code or proposing new architecture, summarize the "Trade-offs".
+* **Standard:** Do not start work until answering: "Why is this not over-engineered?" and "What is the problem with the simplest (Level 1) approach?".
+
+### 2. Standardized Complexity Levels (Align with Clean Arch)
+Always operate within explicit complexity levels:
+* **Mode A (Fast & Lean):** Do not create unnecessary files. No interfaces unless swapping implementations. (Prototype focus).
+* **Mode B (Balanced):** Level 2 Clean Arch for Core Logic only. Standard CRUD elsewhere.
+* **Mode C (Robust):** Full Abstraction Permitted (Long-term infrastructure only).
+
+### 3. State-Gated Execution (Human-in-the-loop)
+Do not perform long-running tasks without checkpoints:
+1. **Phase 1: Analysis & Schema** (Propose Structure -> Await Approval)
+2. **Phase 2: Skeleton/Interface** (Write Interfaces -> Await Approval)
+3. **Phase 3: Implementation** (Fill Logic -> Await Approval)
+*Stop after every phase.*
+
+### 4. Zero-Guessing Policy
+* If requirements (DB Schema, Rules) are unclear, **ASK**. Do not assume.
+* Assumptions lead to over-engineering for futures that may not exist.
+
+---
+### 📥 System Configuration
+
+| CATEGORY | KEY | VALUE |
+| --- | --- | --- |
+| **PHILOSOPHY** | \`MINIMALISM_BIAS\` | **9/10** (Avoid Over-engineering) |
+| **GOVERNANCE** | \`ERROR_POLICY\` | **FAIL_FAST** (Stop and report errors directly) |
+| **DOCUMENTATION** | \`CODE_COMMENT_LANG\` | **TH/EN** (As requested) |
+`;
+}
+
+/**
  * Generates the content for the placeholder src/index.ts file.
  * @param packageName - The name of the package.
  * @returns The string content for src/index.ts.
@@ -388,7 +429,7 @@ describe('${packageName} Initial Tests', () => {
  * @returns A promise that resolves when the command is complete.
  */
 export async function execute(args: CliArguments): Promise<void> {
-    if (args.command !== EnhancementType.Init) {
+    if (args.command !== ENHANCEMENT_TYPES.INIT) {
         throw new Error(`${logPrefix} Handler mismatch: Expected Init command.`);
     }
 
@@ -446,6 +487,7 @@ export async function execute(args: CliArguments): Promise<void> {
         { filePath: path.join(projectRoot, '.gitignore'), content: getGitignoreContent(), name: '.gitignore' },
         { filePath: path.join(projectRoot, 'src', 'index.ts'), content: getSrcIndexTsContent(projPackageName), name: 'src/index.ts' },
         { filePath: path.join(projectRoot, 'tests', 'index.test.ts'), content: getTestsIndexTestTsContent(projPackageName), name: 'tests/index.test.ts' },
+        { filePath: path.join(projectRoot, 'GEMINI.md'), content: getGeminiMdContent(), name: 'GEMINI.md' },
     ];
 
     for (const file of filesToWrite) {

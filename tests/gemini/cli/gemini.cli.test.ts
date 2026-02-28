@@ -3,7 +3,7 @@ import { runCli } from '../src/gemini/cli/gemini.cli';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { CliArguments } from '@shared/types/app.type';
-import { EnhancementType } from '@/gemini/types/enhancement.type';
+import { ENHANCEMENT_TYPES } from '@/gemini/types/enhancement.type';
 import { runCommandLogic } from '@/gemini/cli/gemini.handler';
 
 // Mock necessary modules and functions to isolate the unit tests
@@ -54,7 +54,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.AddComments} <targetPath>`,
+            `${ENHANCEMENT_TYPES.ADD_COMMENTS} <targetPath>`,
             'Add AI-generated comments to files.',
             expect.any(Function),
             expect.any(Function)
@@ -66,7 +66,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.Analyze} <targetPath>`,
+            `${ENHANCEMENT_TYPES.ANALYZE} <targetPath>`,
             'Analyze code structure and quality (outputs to console).',
             expect.any(Function),
             expect.any(Function)
@@ -78,7 +78,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.Explain} <targetPath>`,
+            `${ENHANCEMENT_TYPES.EXPLAIN} <targetPath>`,
             'Explain what the code does (outputs to console).',
             expect.any(Function),
             expect.any(Function)
@@ -90,7 +90,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.SuggestImprovements} <targetPath>`,
+            `${ENHANCEMENT_TYPES.SUGGEST_IMPROVEMENTS} <targetPath>`,
             'Suggest improvements for the code (outputs to console).',
             expect.any(Function),
             expect.any(Function)
@@ -102,7 +102,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.GenerateDocs} <targetPath>`,
+            `${ENHANCEMENT_TYPES.GENERATE_DOCS} <targetPath>`,
             'Generate Markdown documentation for the project (saves to README.md).',
             expect.any(Function),
             expect.any(Function)
@@ -114,7 +114,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.AddPathComment} <targetPath>`,
+            `${ENHANCEMENT_TYPES.ADD_PATH_COMMENT} <targetPath>`,
             'Add "// File: <relativePath>" comment header to files.',
             expect.any(Function),
             expect.any(Function)
@@ -126,7 +126,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.Consolidate} <targetPath>`,
+            `${ENHANCEMENT_TYPES.CONSOLIDATE} <targetPath>`,
             'Consolidate code into a single output file (consolidated_output.txt).',
             expect.any(Function),
             expect.any(Function)
@@ -138,7 +138,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.InferFromData} <targetPath>`,
+            `${ENHANCEMENT_TYPES.INFER_FROM_DATA} <targetPath>`,
             'Infer TypeScript interface from a JSON data file (outputs to console).',
             expect.any(Function),
             expect.any(Function)
@@ -150,7 +150,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.GenerateStructureDoc} [targetPath]`,
+            `${ENHANCEMENT_TYPES.GENERATE_STRUCTURE_DOC} [targetPath]`,
             'Generate a Markdown file representing the project directory structure.',
             expect.any(Function),
             expect.any(Function)
@@ -162,7 +162,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.AnalyzeArchitecture} <targetPath>`,
+            `${ENHANCEMENT_TYPES.ANALYZE_ARCHITECTURE} <targetPath>`,
             'Generate an AI-driven analysis of the project architecture (saves to file).',
             expect.any(Function),
             expect.any(Function)
@@ -174,7 +174,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.GenerateModuleReadme} <targetPath>`,
+            `${ENHANCEMENT_TYPES.GENERATE_MODULE_README} <targetPath>`,
             'Generate a README.md for a specific module directory using AI.',
             expect.any(Function),
             expect.any(Function)
@@ -186,7 +186,7 @@ describe('runCli', () => {
         await runCli(processArgs);
 
         expect(mockedYargs().command).toHaveBeenCalledWith(
-            `${EnhancementType.GenerateTests} <targetPath>`,
+            `${ENHANCEMENT_TYPES.GENERATE_TESTS} <targetPath>`,
             'Generate/update unit test file(s) for source file(s) using AI (output to tests/...).',
             expect.any(Function),
             expect.any(Function)
@@ -196,12 +196,12 @@ describe('runCli', () => {
 
     it('should call runCommandLogic with the correct arguments when a command is executed', async () => {
         const processArgs = ['node', 'script.js', 'addComments', 'target'];
-        const parsedArgv: any = { targetPath: 'target', command: EnhancementType.AddComments };
+        const parsedArgv: any = { targetPath: 'target', command: ENHANCEMENT_TYPES.ADD_COMMENTS };
         (mockedYargs().parseAsync as jest.Mock).mockResolvedValue(parsedArgv);
 
         await runCli(processArgs);
 
-        expect(mockedRunCommandLogic).toHaveBeenCalledWith({ ...parsedArgv, command: EnhancementType.AddComments });
+        expect(mockedRunCommandLogic).toHaveBeenCalledWith({ ...parsedArgv, command: ENHANCEMENT_TYPES.ADD_COMMENTS });
     });
 
     it('should configure demandCommand, strict, help, alias, and wrap', async () => {

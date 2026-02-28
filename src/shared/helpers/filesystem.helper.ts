@@ -98,10 +98,12 @@ export async function getAllFiles(
  * @function filterLines
  * @param {string[]} lines - An array of strings representing the lines of a file.  This is the raw content of the file, split into individual lines.
  * @param {string} friendlyPath - A file path to use when filtering comment markers. This allows the function to identify and remove comments
- *                                 that refer to the original file path. This is useful for removing automatically generated headers.
+ *                                  that refer to the original file path. This is useful for removing automatically generated headers.
+ * @param {boolean} stripComments - If true, removes single-line (//) and multi-line comments from the code. Also removes boilerplate like 'require_once' sequences.
+ * @param {boolean} minify - If true, enforces maximum information density for LLMs (no blank lines, drops debug logs, truncates long strings).
  * @returns {string[]} An array of strings representing the filtered lines. The array contains the cleaned-up content of the file.
  */
-export function filterLines(lines: string[], friendlyPath: string): string[] {
+export function filterLines(lines: string[], friendlyPath: string, stripComments: boolean = false, minify: boolean = false): string[] {
     let startIndex = 0;
     const pathCommentRegex = /^\s*\/\/\s*File:\s*(.+)\s*$/;
 
@@ -122,14 +124,107 @@ export function filterLines(lines: string[], friendlyPath: string): string[] {
     const filteredLines: string[] = [];
     let prevLineTrimmed: string | null = null;
 
-    // Filter duplicate consecutive lines.
-    // This loop iterates through the relevant lines, skipping lines that are identical to the previous line (after trimming whitespace).
+    let inBlockComment = false;
+    let requireOnceCount = 0;
+
+    // Filter duplicate consecutive lines and apply advanced stripping
     for (const line of relevantLines) {
-        const currentLineTrimmed = line.trim();
+        let currentLineTrimmed = line.trim();
+        
+        if (stripComments) {
+            // Handle Block Comments
+            if (inBlockComment) {
+                if (currentLineTrimmed.includes("*/")) {
+                    inBlockComment = false;
+                    currentLineTrimmed = currentLineTrimmed.split("*/", 2)[1].trim();
+                } else {
+                    continue; // Skip lines entirely inside block comment
+                }
+            } else if (currentLineTrimmed.startsWith("/*")) {
+                if (currentLineTrimmed.includes("*/")) {
+                    // Inline block comment, strip it
+                    currentLineTrimmed = currentLineTrimmed.replace(/\/\*.*?\*\//g, "").trim();
+                } else {
+                    inBlockComment = true;
+                    continue; // Skip the start of a block comment
+                }
+            }
+
+            // Handle Single-Line Comments
+            if (currentLineTrimmed.startsWith("//") || currentLineTrimmed.startsWith("#")) {
+                continue; // Skip full comment lines
+            } else if (currentLineTrimmed.includes("//")) {
+                // Strip end-of-line comments
+                currentLineTrimmed = currentLineTrimmed.split("//")[0].trim();
+            }
+
+            // Boilerplate Reduction (PHP 'require_once' and 'include_once' chains)
+            if (currentLineTrimmed.startsWith("require_once") || currentLineTrimmed.startsWith("include_once") || currentLineTrimmed.startsWith("require ") || currentLineTrimmed.startsWith("include ")) {
+                requireOnceCount++;
+                if (requireOnceCount === 1) {
+                    filteredLines.push("// ... [Includes omitted for brevity] ...");
+                }
+                continue; // Skip the actual include lines
+            } else if (currentLineTrimmed !== "") {
+                requireOnceCount = 0; // Reset counter if we hit normal code
+            }
+        }
+
+        // Apply LLM-Density Minify logic if enabled
+        if (minify) {
+            // Remove debugging logs entirely
+            if (
+                currentLineTrimmed.startsWith("console.log") ||
+                currentLineTrimmed.startsWith("console.error") ||
+                currentLineTrimmed.startsWith("console.info") ||
+                currentLineTrimmed.startsWith("console.debug") ||
+                currentLineTrimmed.startsWith("var_dump(") ||
+                currentLineTrimmed.startsWith("error_log(") ||
+                currentLineTrimmed.startsWith("print_r(")
+            ) {
+                continue;
+            }
+
+            // Truncate massively long strings/base64 inline (basic regex logic)
+            // Look for quotes with > 250 word characters/symbols without spaces
+            if (currentLineTrimmed.length > 250) {
+                // Replacing long string literals enclosed in single or double quotes
+                currentLineTrimmed = currentLineTrimmed.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, (match, quote) => {
+                    if (match.length > 250) {
+                        return `${quote}...[TRUNCATED_FOR_AI]...${quote}`;
+                    }
+                    return match;
+                });
+            }
+        }
+
         if (currentLineTrimmed !== "" && currentLineTrimmed === prevLineTrimmed) {
             continue; // Skip if the current line is the same as the previous line
         }
-        filteredLines.push(line);
+
+        // Push the original processed line (or stripped line if stripComments is active and it was reduced)
+        // If minify is active, we strip all original whitespace and only use one indent scale if applicable
+        let lineToPush = stripComments ? currentLineTrimmed : line;
+
+        if (minify) {
+            // If minify is true, we ONLY push the trimmed line (no leading spaces unless absolutely needed)
+            // But for structural context, keeping leading spaces is better. We will collapse multiple spaces to single inside the text instead.
+            lineToPush = currentLineTrimmed;
+            
+            // Re-apply original leading indent string exactly as it was
+            const originalIndentArr = line.match(/^([ \t]+)/);
+            if (originalIndentArr) {
+                 lineToPush = originalIndentArr[1] + lineToPush;
+            }
+            
+            // Remove ANY entirely blank lines
+            if (!currentLineTrimmed) continue;
+        } else {
+            // Original blank lines logic skips if everything was stripped
+            if (stripComments && !currentLineTrimmed) continue;
+        }
+
+        filteredLines.push(lineToPush);
         prevLineTrimmed = currentLineTrimmed;
     }
     return filteredLines;

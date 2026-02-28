@@ -5,7 +5,7 @@ import fs from 'fs';
 import { CliArguments } from '@shared/types/app.type';
 import { getConsolidatedSources } from '@shared/utils/filesystem.utils';
 import { writeOutputFile } from '@shared/utils/file-io.utils';
-import { EnhancementType } from '@/gemini/types/enhancement.type';
+import { ENHANCEMENT_TYPES } from '@/gemini/types/enhancement.type';
 
 const logPrefix = "[Consolidate]";
 
@@ -19,11 +19,15 @@ const logPrefix = "[Consolidate]";
  * @throws {Error} If validation fails or file system/write errors occur.
  */
 export async function execute(args: CliArguments): Promise<void> {
-    if (args.command !== EnhancementType.Consolidate) {
+    if (args.command !== ENHANCEMENT_TYPES.CONSOLIDATE) {
         throw new Error("Handler mismatch: Expected Consolidate command.");
     }
     // Get targetPath, prefix, and the new pattern
-    const { targetPath, prefix, pattern } = args;
+    const { targetPath, prefix, pattern, withPathComments, stripComments, minify } = args;
+
+    if (!targetPath) {
+        throw new Error("Target path is required for consolidation.");
+    }
 
     // Determine active filter for logging
     let filterLog = "";
@@ -32,6 +36,9 @@ export async function execute(args: CliArguments): Promise<void> {
     } else if (prefix) {
         filterLog = ` with prefix '${prefix}'`;
     }
+
+    const isMinified = !!minify;
+    const isStripped = isMinified || !!stripComments;
 
     console.log(`\n${logPrefix} Consolidating files from: ${targetPath}${filterLog}...`);
 
@@ -48,7 +55,13 @@ export async function execute(args: CliArguments): Promise<void> {
 
     // <<< MODIFIED HERE: Pass pattern AND prefix to getConsolidatedSources >>>
     // The utility function will prioritize the pattern if it exists.
-    const consolidatedContent = await getConsolidatedSources(consolidationRoot, prefix, pattern);
+    const consolidatedContent = await getConsolidatedSources(
+      targetPath,
+      prefix ? String(prefix) : undefined,
+      pattern ? String(pattern) : undefined,
+      isStripped,
+      isMinified
+    );
 
     // Check if any files were found (same check as before)
     const consolidatedContentLines = consolidatedContent.trim().split('\n');
@@ -63,11 +76,15 @@ export async function execute(args: CliArguments): Promise<void> {
     const outputFilePath = path.resolve(process.cwd(), outputFileName);
 
     // Write the output file (same as before)
-    const success = writeOutputFile(outputFilePath, consolidatedContent);
+    let finalContent = consolidatedContent;
+    if (!withPathComments) {
+        // Assume getConsolidatedSources embeds // File: by default as per the codebase, let's strip it if NOT requested
+        finalContent = finalContent.replace(/^\/\/ File: .*\r?\n\r?\n?/gm, '');
+    }
 
-    if (!success) {
-        throw new Error(`Failed to write consolidated output to ${outputFileName}`);
+    if (writeOutputFile(outputFilePath, finalContent)) {
+      console.log(`${logPrefix} ✅ Success: Consolidated sources written to ${outputFilePath}`);
     } else {
-        console.log(`\n${logPrefix} ✅ Consolidated content saved to: ${outputFileName}`);
+        throw new Error(`Failed to write consolidated output to ${outputFilePath}`);
     }
 }
