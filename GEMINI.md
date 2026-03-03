@@ -79,10 +79,21 @@ Software is only as good as its reliability.
 - **Structured Logging:** Log events in a structured format (e.g., JSON) with clear context to ensure observability. Never use `console.log` for application events.
 - **Predictable Error Handling:** APIs must have a standardized success and error response format. Use custom error types to represent domain-specific failures.
 
-## 7. The Language of Collaboration: Version Control
+## 7. The Language of Collaboration: Version Control & Documentation
 
-A clean history is a form of communication and a vital project asset.
+A clean history and clear documentation are forms of communication and vital project assets.
+
 - **Conventional Commits:** All commit messages must follow the `<type>(<scope>): <subject>` format. This provides a clear, machine-readable history of changes.
+- **Bilingual Documentation Policy (EN/TH):** To ensure a bridge between technical implementation and business requirements, all documentation must support both English and Thai.
+    - **Code:** Classes, methods, and variables must be in English.
+    - **Context:** Business logic descriptions and non-obvious rules should be provided in Thai (or bilingual) to ensure accurate domain understanding.
+- **API Endpoint Documentation Blocks:** Every file that exposes an API endpoint **must** begin with a documentation block in a bilingual format. This block is a contract that explains the "What, Why, and How" of the endpoint.
+    -   **Purpose (จุดประสงค์):** A clear description of the endpoint's business purpose.
+    -   **Endpoint & Method:** The URL path and HTTP method.
+    -   **Request Example:** A sample request body (JSON).
+    -   **Success Response Example:** A sample of a successful (200 OK) JSON response.
+    -   **Error Response Example(s):** Samples of common error responses (e.g., 401, 404).
+    -   **Key Business Logic (กฎทางธุรกิจที่สำคัญ):** A summary of critical, non-obvious business rules the code enforces (e.g., Refinance bypass logic).
 
 ## 8. Application and Adaptability
 
